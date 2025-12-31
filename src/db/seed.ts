@@ -1,0 +1,749 @@
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import type {
+  ClassGroup,
+  SessionLog,
+  TrainingPlan,
+  TrainingTemplate,
+  HiddenTemplate,
+  Student,
+  AttendanceRecord,
+  Exercise,
+} from "../core/models";
+
+const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
+
+const headers = () => ({
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  "Content-Type": "application/json",
+});
+
+const supabaseGet = async <T>(path: string) => {
+  const res = await fetch(REST_BASE + path, { headers: headers() });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase GET error: ${res.status} ${text}`);
+  }
+  return (await res.json()) as T;
+};
+
+const supabasePost = async <T>(path: string, body: unknown) => {
+  const res = await fetch(REST_BASE + path, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase POST error: ${res.status} ${text}`);
+  }
+  const text = await res.text();
+  if (!text) return [] as T;
+  return JSON.parse(text) as T;
+};
+
+const supabasePatch = async <T>(path: string, body: unknown) => {
+  const res = await fetch(REST_BASE + path, {
+    method: "PATCH",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Supabase PATCH error: ${res.status}`);
+  const text = await res.text();
+  if (!text) return [] as T;
+  return JSON.parse(text) as T;
+};
+
+const supabaseDelete = async (path: string) => {
+  const res = await fetch(REST_BASE + path, {
+    method: "DELETE",
+    headers: headers(),
+  });
+  if (!res.ok) throw new Error(`Supabase DELETE error: ${res.status}`);
+};
+
+type ClassRow = {
+  id: string;
+  name: string;
+  unit?: string;
+  ageband: string;
+  starttime?: string;
+  duration?: number;
+  days?: number[];
+  daysperweek: number;
+  goal: string;
+  equipment: string;
+  level: number;
+};
+
+type TrainingPlanRow = {
+  id: string;
+  classid: string;
+  title: string;
+  tags: string[];
+  warmup: string[];
+  main: string[];
+  cooldown: string[];
+  warmuptime: string;
+  maintime: string;
+  cooldowntime: string;
+  applydays?: number[];
+  applydate?: string;
+  createdat: string;
+};
+
+type TrainingTemplateRow = {
+  id: string;
+  title: string;
+  ageband: string;
+  tags: string[];
+  warmup: string[];
+  main: string[];
+  cooldown: string[];
+  warmuptime: string;
+  maintime: string;
+  cooldowntime: string;
+  createdat: string;
+};
+
+type HiddenTemplateRow = {
+  id: string;
+  templateid: string;
+  createdat: string;
+};
+
+type StudentRow = {
+  id: string;
+  name: string;
+  classid: string;
+  age: number;
+  phone: string;
+  createdat: string;
+};
+
+type AttendanceRow = {
+  id: string;
+  classid: string;
+  studentid: string;
+  date: string;
+  status: string;
+  note: string;
+  createdat: string;
+};
+
+type ExerciseRow = {
+  id: string;
+  title: string;
+  tags: string[];
+  videourl: string;
+  source: string;
+  description: string;
+  publishedat: string;
+  notes: string;
+  createdat: string;
+};
+
+export async function seedIfEmpty() {
+  const existing = await supabaseGet<ClassRow[]>(
+    "/classes?select=id&limit=1"
+  );
+  if (existing.length > 0) return;
+
+  const classes: ClassRow[] = [
+    {
+      id: "c1",
+      name: "Turma 8-9",
+      unit: "Rede Esperanca",
+      ageband: "8-9",
+      starttime: "14:00",
+      duration: 60,
+      days: [2, 4],
+      daysperweek: 3,
+      goal: "Fundamentos",
+      equipment: "misto",
+      level: 1,
+    },
+    {
+      id: "c2",
+      name: "Turma 10-12",
+      unit: "Rede Esperanca",
+      ageband: "10-12",
+      starttime: "15:00",
+      duration: 60,
+      days: [2, 4],
+      daysperweek: 3,
+      goal: "Forca Geral",
+      equipment: "misto",
+      level: 2,
+    },
+    {
+      id: "c3",
+      name: "Turma 13-15",
+      unit: "Rede Esportes Pinhais",
+      ageband: "13-15",
+      starttime: "14:00",
+      duration: 60,
+      days: [1, 3, 5],
+      daysperweek: 3,
+      goal: "Forca+Potencia",
+      equipment: "misto",
+      level: 2,
+    },
+  ];
+
+  await supabasePost("/classes", classes);
+}
+
+export async function getClasses(): Promise<ClassGroup[]> {
+  const rows = await supabaseGet<ClassRow[]>("/classes?select=*&order=name.asc");
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    unit: row.unit ?? "Sem unidade",
+    ageBand: row.ageband,
+    startTime: row.starttime ?? "14:00",
+    durationMinutes: row.duration ?? 60,
+    daysOfWeek:
+      Array.isArray(row.days) && row.days.length
+        ? row.days
+        : row.daysperweek === 3
+          ? [1, 3, 5]
+          : [2, 4],
+    daysPerWeek: row.daysperweek,
+    goal: row.goal,
+    equipment: row.equipment,
+    level: row.level,
+  }));
+}
+
+export async function getClassById(id: string): Promise<ClassGroup | null> {
+  const rows = await supabaseGet<ClassRow[]>(
+    "/classes?select=*&id=eq." + encodeURIComponent(id)
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    unit: row.unit ?? "Sem unidade",
+    ageBand: row.ageband,
+    startTime: row.starttime ?? "14:00",
+    durationMinutes: row.duration ?? 60,
+    daysOfWeek:
+      Array.isArray(row.days) && row.days.length
+        ? row.days
+        : row.daysperweek === 3
+          ? [1, 3, 5]
+          : [2, 4],
+    daysPerWeek: row.daysperweek,
+    goal: row.goal,
+    equipment: row.equipment,
+    level: row.level,
+  };
+}
+
+export async function updateClass(
+  id: string,
+  data: {
+    name: string;
+    unit: string;
+    daysOfWeek: number[];
+    goal: ClassGroup["goal"];
+    ageBand: ClassGroup["ageBand"];
+    startTime: string;
+    durationMinutes: number;
+  }
+) {
+  await supabasePatch("/classes?id=eq." + encodeURIComponent(id), {
+    name: data.name,
+    unit: data.unit,
+    days: data.daysOfWeek,
+    goal: data.goal,
+    ageband: data.ageBand,
+    starttime: data.startTime,
+    duration: data.durationMinutes,
+  });
+}
+
+export async function saveClass(data: {
+  name: string;
+  unit: string;
+  ageBand: ClassGroup["ageBand"];
+  daysOfWeek: number[];
+  goal: ClassGroup["goal"];
+  startTime: string;
+  durationMinutes: number;
+}) {
+  await supabasePost("/classes", [
+    {
+      id: "c_" + Date.now(),
+      name: data.name,
+      unit: data.unit,
+      ageband: data.ageBand,
+      starttime: data.startTime,
+      duration: data.durationMinutes,
+      days: data.daysOfWeek,
+      daysperweek: data.daysOfWeek.length,
+      goal: data.goal,
+      equipment: "misto",
+      level: 1,
+    },
+  ]);
+}
+
+export async function duplicateClass(base: ClassGroup) {
+  await supabasePost("/classes", [
+    {
+      id: "c_" + Date.now(),
+      name: base.name + " (copia)",
+      unit: base.unit,
+      ageband: base.ageBand,
+      starttime: base.startTime,
+      duration: base.durationMinutes,
+      days: base.daysOfWeek,
+      daysperweek: base.daysOfWeek.length,
+      goal: base.goal,
+      equipment: base.equipment,
+      level: base.level,
+    },
+  ]);
+}
+
+export async function deleteClass(id: string) {
+  await supabaseDelete("/classes?id=eq." + encodeURIComponent(id));
+}
+
+export async function deleteClassCascade(id: string) {
+  await supabaseDelete(
+    "/training_plans?classid=eq." + encodeURIComponent(id)
+  );
+  await supabaseDelete(
+    "/attendance_logs?classid=eq." + encodeURIComponent(id)
+  );
+  await supabaseDelete("/students?classid=eq." + encodeURIComponent(id));
+  await supabaseDelete(
+    "/session_logs?classid=eq." + encodeURIComponent(id)
+  );
+  await deleteClass(id);
+}
+
+export async function saveSessionLog(log: SessionLog) {
+  await supabasePost("/session_logs", [
+    {
+      id: "log_" + Date.now(),
+      classid: log.classId,
+      rpe: log.rpe,
+      technique: log.technique,
+      attendance: log.attendance,
+      createdat: log.createdAt,
+    },
+  ]);
+}
+
+export async function getTrainingPlans(): Promise<TrainingPlan[]> {
+  const rows = await supabaseGet<TrainingPlanRow[]>(
+    "/training_plans?select=*&order=createdat.desc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    classId: row.classid,
+    title: row.title,
+    tags: row.tags ?? [],
+    warmup: row.warmup ?? [],
+    main: row.main ?? [],
+    cooldown: row.cooldown ?? [],
+    warmupTime: row.warmuptime ?? "",
+    mainTime: row.maintime ?? "",
+    cooldownTime: row.cooldowntime ?? "",
+    applyDays: row.applydays ?? [],
+    applyDate: row.applydate ?? "",
+    createdAt: row.createdat,
+  }));
+}
+
+export async function saveTrainingPlan(plan: TrainingPlan) {
+  await supabasePost("/training_plans", [
+    {
+      id: plan.id,
+      classid: plan.classId,
+      title: plan.title,
+      tags: plan.tags ?? [],
+      warmup: plan.warmup,
+      main: plan.main,
+      cooldown: plan.cooldown,
+      warmuptime: plan.warmupTime,
+      maintime: plan.mainTime,
+      cooldowntime: plan.cooldownTime,
+      applydays: plan.applyDays ?? [],
+      applydate: plan.applyDate ? plan.applyDate : null,
+      createdat: plan.createdAt,
+    },
+  ]);
+}
+
+export async function updateTrainingPlan(plan: TrainingPlan) {
+  await supabasePatch(
+    "/training_plans?id=eq." + encodeURIComponent(plan.id),
+    {
+      classid: plan.classId,
+      title: plan.title,
+      tags: plan.tags ?? [],
+      warmup: plan.warmup,
+      main: plan.main,
+      cooldown: plan.cooldown,
+      warmuptime: plan.warmupTime,
+      maintime: plan.mainTime,
+      cooldowntime: plan.cooldownTime,
+      applydays: plan.applyDays ?? [],
+      applydate: plan.applyDate ? plan.applyDate : null,
+      createdat: plan.createdAt,
+    }
+  );
+}
+
+export async function deleteTrainingPlan(id: string) {
+  await supabaseDelete(
+    "/training_plans?id=eq." + encodeURIComponent(id)
+  );
+}
+
+export async function getExercises(): Promise<Exercise[]> {
+  const rows = await supabaseGet<ExerciseRow[]>(
+    "/exercises?select=*&order=createdat.desc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    tags: row.tags ?? [],
+    videoUrl: row.videourl ?? "",
+    source: row.source ?? "",
+    description: row.description ?? "",
+    publishedAt: row.publishedat ?? "",
+    notes: row.notes ?? "",
+    createdAt: row.createdat,
+  }));
+}
+
+export async function saveExercise(exercise: Exercise) {
+  await supabasePost("/exercises", [
+    {
+      id: exercise.id,
+      title: exercise.title,
+      tags: exercise.tags ?? [],
+      videourl: exercise.videoUrl ?? "",
+      source: exercise.source ?? "",
+      description: exercise.description ?? "",
+      publishedat: exercise.publishedAt ?? "",
+      notes: exercise.notes ?? "",
+      createdat: exercise.createdAt,
+    },
+  ]);
+}
+
+export async function updateExercise(exercise: Exercise) {
+  await supabasePatch(
+    "/exercises?id=eq." + encodeURIComponent(exercise.id),
+    {
+      title: exercise.title,
+      tags: exercise.tags ?? [],
+      videourl: exercise.videoUrl ?? "",
+      source: exercise.source ?? "",
+      description: exercise.description ?? "",
+      publishedat: exercise.publishedAt ?? "",
+      notes: exercise.notes ?? "",
+      createdat: exercise.createdAt,
+    }
+  );
+}
+
+export async function deleteExercise(id: string) {
+  await supabaseDelete(
+    "/exercises?id=eq." + encodeURIComponent(id)
+  );
+}
+
+export async function getTrainingTemplates(): Promise<TrainingTemplate[]> {
+  const rows = await supabaseGet<TrainingTemplateRow[]>(
+    "/training_templates?select=*&order=createdat.desc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    ageBand: row.ageband,
+    tags: row.tags ?? [],
+    warmup: row.warmup ?? [],
+    main: row.main ?? [],
+    cooldown: row.cooldown ?? [],
+    warmupTime: row.warmuptime ?? "",
+    mainTime: row.maintime ?? "",
+    cooldownTime: row.cooldowntime ?? "",
+    createdAt: row.createdat,
+  }));
+}
+
+export async function saveTrainingTemplate(
+  template: TrainingTemplate
+) {
+  await supabasePost("/training_templates", [
+    {
+      id: template.id,
+      title: template.title,
+      ageband: template.ageBand,
+      tags: template.tags ?? [],
+      warmup: template.warmup,
+      main: template.main,
+      cooldown: template.cooldown,
+      warmuptime: template.warmupTime,
+      maintime: template.mainTime,
+      cooldowntime: template.cooldownTime,
+      createdat: template.createdAt,
+    },
+  ]);
+}
+
+export async function updateTrainingTemplate(
+  template: TrainingTemplate
+) {
+  await supabasePatch(
+    "/training_templates?id=eq." + encodeURIComponent(template.id),
+    {
+      title: template.title,
+      ageband: template.ageBand,
+      tags: template.tags ?? [],
+      warmup: template.warmup,
+      main: template.main,
+      cooldown: template.cooldown,
+      warmuptime: template.warmupTime,
+      maintime: template.mainTime,
+      cooldowntime: template.cooldownTime,
+      createdat: template.createdAt,
+    }
+  );
+}
+
+export async function deleteTrainingTemplate(id: string) {
+  await supabaseDelete(
+    "/training_templates?id=eq." + encodeURIComponent(id)
+  );
+}
+
+export async function getHiddenTemplates(): Promise<HiddenTemplate[]> {
+  const rows = await supabaseGet<HiddenTemplateRow[]>(
+    "/training_template_hides?select=*"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    templateId: row.templateid,
+    createdAt: row.createdat,
+  }));
+}
+
+export async function hideTrainingTemplate(templateId: string) {
+  await supabasePost("/training_template_hides", [
+    {
+      id: "hide_" + Date.now(),
+      templateid: templateId,
+      createdat: new Date().toISOString(),
+    },
+  ]);
+}
+
+export async function getLatestTrainingPlanByClass(
+  classId: string
+): Promise<TrainingPlan | null> {
+  const rows = await supabaseGet<TrainingPlanRow[]>(
+    "/training_plans?select=*&classid=eq." +
+      encodeURIComponent(classId) +
+      "&order=createdat.desc&limit=1"
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    classId: row.classid,
+    title: row.title,
+    tags: row.tags ?? [],
+    warmup: row.warmup ?? [],
+    main: row.main ?? [],
+    cooldown: row.cooldown ?? [],
+    warmupTime: row.warmuptime ?? "",
+    mainTime: row.maintime ?? "",
+    cooldownTime: row.cooldowntime ?? "",
+    applyDays: row.applydays ?? [],
+    applyDate: row.applydate ?? "",
+    createdAt: row.createdat,
+  };
+}
+
+export async function getStudents(): Promise<Student[]> {
+  const rows = await supabaseGet<StudentRow[]>(
+    "/students?select=*&order=name.asc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    classId: row.classid,
+    age: row.age,
+    phone: row.phone,
+    createdAt: row.createdat,
+  }));
+}
+
+export async function getStudentsByClass(classId: string): Promise<Student[]> {
+  const rows = await supabaseGet<StudentRow[]>(
+    "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    classId: row.classid,
+    age: row.age,
+    phone: row.phone,
+    createdAt: row.createdat,
+  }));
+}
+
+export async function getStudentById(id: string): Promise<Student | null> {
+  const rows = await supabaseGet<StudentRow[]>(
+    "/students?select=*&id=eq." + encodeURIComponent(id)
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    classId: row.classid,
+    age: row.age,
+    phone: row.phone,
+    createdAt: row.createdat,
+  };
+}
+
+export async function saveStudent(student: Student) {
+  await supabasePost("/students", [
+    {
+      id: student.id,
+      name: student.name,
+      classid: student.classId,
+      age: student.age,
+      phone: student.phone,
+      createdat: student.createdAt,
+    },
+  ]);
+}
+
+export async function updateStudent(student: Student) {
+  await supabasePatch(
+    "/students?id=eq." + encodeURIComponent(student.id),
+    {
+      name: student.name,
+      classid: student.classId,
+      age: student.age,
+      phone: student.phone,
+      createdat: student.createdAt,
+    }
+  );
+}
+
+export async function deleteStudent(id: string) {
+  await supabaseDelete("/students?id=eq." + encodeURIComponent(id));
+}
+
+export async function saveAttendanceRecords(
+  classId: string,
+  date: string,
+  records: AttendanceRecord[]
+) {
+  await supabaseDelete(
+    "/attendance_logs?classid=eq." +
+      encodeURIComponent(classId) +
+      "&date=eq." +
+      encodeURIComponent(date)
+  );
+
+  const rows: AttendanceRow[] = records.map((record) => ({
+    id: record.id,
+    classid: record.classId,
+    studentid: record.studentId,
+    date: record.date,
+    status: record.status,
+    note: record.note,
+    createdat: record.createdAt,
+  }));
+
+  await supabasePost("/attendance_logs", rows);
+}
+
+export async function getAttendanceByClass(
+  classId: string
+): Promise<AttendanceRecord[]> {
+  const rows = await supabaseGet<AttendanceRow[]>(
+    "/attendance_logs?select=*&classid=eq." +
+      encodeURIComponent(classId) +
+      "&order=date.desc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    classId: row.classid,
+    studentId: row.studentid,
+    date: row.date,
+    status: row.status === "faltou" ? "faltou" : "presente",
+    note: row.note ?? "",
+    createdAt: row.createdat,
+  }));
+}
+
+export async function getAttendanceByDate(
+  classId: string,
+  date: string
+): Promise<AttendanceRecord[]> {
+  const rows = await supabaseGet<AttendanceRow[]>(
+    "/attendance_logs?select=*&classid=eq." +
+      encodeURIComponent(classId) +
+      "&date=eq." +
+      encodeURIComponent(date)
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    classId: row.classid,
+    studentId: row.studentid,
+    date: row.date,
+    status: row.status === "faltou" ? "faltou" : "presente",
+    note: row.note ?? "",
+    createdAt: row.createdat,
+  }));
+}
+
+export async function getAttendanceByStudent(
+  studentId: string
+): Promise<AttendanceRecord[]> {
+  const rows = await supabaseGet<AttendanceRow[]>(
+    "/attendance_logs?select=*&studentid=eq." +
+      encodeURIComponent(studentId) +
+      "&order=date.desc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    classId: row.classid,
+    studentId: row.studentid,
+    date: row.date,
+    status: row.status === "faltou" ? "faltou" : "presente",
+    note: row.note ?? "",
+    createdAt: row.createdat,
+  }));
+}
+
+export async function getAttendanceAll(): Promise<AttendanceRecord[]> {
+  const rows = await supabaseGet<AttendanceRow[]>(
+    "/attendance_logs?select=*&order=date.desc"
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    classId: row.classid,
+    studentId: row.studentid,
+    date: row.date,
+    status: row.status === "faltou" ? "faltou" : "presente",
+    note: row.note ?? "",
+    createdAt: row.createdat,
+  }));
+}
