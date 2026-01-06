@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import type { AuthSession } from "./session";
 import { loadSession, saveSession } from "./session";
+import { clearSentryUser, setSentryUser } from "../observability/sentry";
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -64,6 +65,15 @@ export function AuthProvider({
       alive = false;
     };
   }, [initialSession]);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (userId) {
+      setSentryUser(userId);
+    } else {
+      clearSentryUser();
+    }
+  }, [session]);
 
   const signIn = useCallback(async (email: string, password: string, remember = true) => {
     const payload = await authFetch("/auth/v1/token?grant_type=password", {

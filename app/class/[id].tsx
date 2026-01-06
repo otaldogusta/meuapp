@@ -31,6 +31,8 @@ import { animateLayout } from "../../src/ui/animate-layout";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { logAction } from "../../src/observability/breadcrumbs";
+import { measure } from "../../src/observability/perf";
 
 export default function ClassDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -271,7 +273,8 @@ export default function ClassDetails() {
       confirmLabel: "Excluir",
       undoMessage: "Turma excluida. Deseja desfazer?",
       onConfirm: async () => {
-        await deleteClassCascade(cls.id);
+        await measure("deleteClassCascade", () => deleteClassCascade(cls.id));
+        logAction("Excluir turma", { classId: cls.id });
         router.replace("/classes");
       },
     });

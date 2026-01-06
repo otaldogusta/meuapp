@@ -35,6 +35,8 @@ import { usePersistedState } from "../../../src/ui/use-persisted-state";
 import { Typography } from "../../../src/ui/Typography";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { logAction } from "../../../src/observability/breadcrumbs";
+import { measure } from "../../../src/observability/perf";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
@@ -131,9 +133,18 @@ export default function AttendanceScreen() {
       createdAt,
     }));
 
-    await saveAttendanceRecords(cls.id, date, records);
-    const past = await getAttendanceByClass(cls.id);
+    await measure("saveAttendanceRecords", () =>
+      saveAttendanceRecords(cls.id, date, records)
+    );
+    const past = await measure("getAttendanceByClass", () =>
+      getAttendanceByClass(cls.id)
+    );
     setHistory(past);
+    logAction("Salvar chamada", {
+      classId: cls.id,
+      date,
+      total: records.length,
+    });
     router.replace("/");
   };
 

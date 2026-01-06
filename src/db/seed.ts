@@ -1,5 +1,6 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { getValidAccessToken } from "../auth/session";
+import * as Sentry from "@sentry/react-native";
 import type {
   ClassGroup,
   SessionLog,
@@ -23,51 +24,82 @@ const headers = async () => {
   };
 };
 
-const supabaseGet = async <T>(path: string) => {
-  const res = await fetch(REST_BASE + path, { headers: await headers() });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Supabase GET error: ${res.status} ${text}`);
+const summarizeResponse = (text: string) => {
+  if (!text) return "";
+  const trimmed = text.trim();
+  if (/^<!doctype|^<html/i.test(trimmed)) {
+    return "HTML response";
   }
-  return (await res.json()) as T;
+  return trimmed.replace(/\s+/g, " ").slice(0, 280);
+};
+
+const supabaseRequest = async (
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown
+) => {
+  const startedAt = Date.now();
+  const res = await fetch(REST_BASE + path, {
+    method,
+    headers: await headers(),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const ms = Date.now() - startedAt;
+  const text = await res.text();
+  const summary = summarizeResponse(text);
+  const errorCategory =
+    res.status === 401 || res.status === 403
+      ? "auth"
+      : res.status === 404
+        ? "not_found"
+        : "http_error";
+  if (!res.ok) {
+    Sentry.setContext("supabase_error", {
+      category: errorCategory,
+      status: res.status,
+      method,
+      path,
+      ms,
+    });
+  } else {
+    Sentry.setContext("supabase_error", null);
+  }
+  Sentry.addBreadcrumb({
+    category: "supabase",
+    message: `${method} ${path}`,
+    level: res.ok ? "info" : "error",
+    data: {
+      status: res.status,
+      ms,
+      response: summary || undefined,
+      errorCategory: res.ok ? undefined : errorCategory,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Supabase ${method} error: ${res.status} ${summary}`);
+  }
+  return text;
+};
+
+const supabaseGet = async <T>(path: string) => {
+  const text = await supabaseRequest("GET", path);
+  return (text ? JSON.parse(text) : []) as T;
 };
 
 const supabasePost = async <T>(path: string, body: unknown) => {
-  const res = await fetch(REST_BASE + path, {
-    method: "POST",
-    headers: await headers(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Supabase POST error: ${res.status} ${text}`);
-  }
-  const text = await res.text();
+  const text = await supabaseRequest("POST", path, body);
   if (!text) return [] as T;
   return JSON.parse(text) as T;
 };
 
 const supabasePatch = async <T>(path: string, body: unknown) => {
-  const res = await fetch(REST_BASE + path, {
-    method: "PATCH",
-    headers: await headers(),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Supabase PATCH error: ${res.status} ${text}`);
-  }
-  const text = await res.text();
+  const text = await supabaseRequest("PATCH", path, body);
   if (!text) return [] as T;
   return JSON.parse(text) as T;
 };
 
 const supabaseDelete = async (path: string) => {
-  const res = await fetch(REST_BASE + path, {
-    method: "DELETE",
-    headers: await headers(),
-  });
-  if (!res.ok) throw new Error(`Supabase DELETE error: ${res.status}`);
+  await supabaseRequest("DELETE", path);
 };
 
 const isMissingRelation = (error: unknown, relation: string) => {

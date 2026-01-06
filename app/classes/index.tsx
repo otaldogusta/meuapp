@@ -31,6 +31,8 @@ import { updateClass } from "../../src/db/seed";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { logAction } from "../../src/observability/breadcrumbs";
+import { measure } from "../../src/observability/perf";
 
 export default function ClassesScreen() {
   const router = useRouter();
@@ -457,8 +459,9 @@ export default function ClassesScreen() {
           setClasses((prev) => prev.filter((item) => item.id !== target.id));
         },
         onConfirm: async () => {
-          await deleteClassCascade(target.id);
+          await measure("deleteClassCascade", () => deleteClassCascade(target.id));
           await loadClasses();
+          logAction("Excluir turma", { classId: target.id });
         },
         onUndo: async () => {
           await loadClasses();

@@ -42,6 +42,8 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
+import { logAction } from "../../src/observability/breadcrumbs";
+import { measure } from "../../src/observability/perf";
 
 export default function StudentsScreen() {
   const router = useRouter();
@@ -212,10 +214,14 @@ export default function StudentsScreen() {
     };
 
     if (editingId) {
-      await updateStudent(student);
+      await measure("updateStudent", () => updateStudent(student));
     } else {
-      await saveStudent(student);
+      await measure("saveStudent", () => saveStudent(student));
     }
+    logAction(wasEditing ? "Editar aluno" : "Cadastrar aluno", {
+      studentId: student.id,
+      classId,
+    });
 
     resetForm();
     await reload();
@@ -394,8 +400,12 @@ export default function StudentsScreen() {
         }
       },
       onConfirm: async () => {
-        await deleteStudent(student.id);
+        await measure("deleteStudent", () => deleteStudent(student.id));
         await reload();
+        logAction("Excluir aluno", {
+          studentId: student.id,
+          classId: student.classId,
+        });
       },
       onUndo: async () => {
         await reload();

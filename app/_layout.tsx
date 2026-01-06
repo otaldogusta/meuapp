@@ -1,5 +1,6 @@
 import {
-  useEffect } from "react";
+  useEffect,
+  useRef } from "react";
 import { Platform,
   Text,
   View
@@ -25,6 +26,8 @@ import { AuthProvider, useAuth } from "../src/auth/auth";
 import * as Sentry from '@sentry/react-native';
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
 import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
+import { logNavigation } from "../src/observability/breadcrumbs";
+import { setSentryBaseTags } from "../src/observability/sentry";
 
 Sentry.init({
   dsn: 'https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320',
@@ -44,6 +47,7 @@ function RootLayoutContent() {
   const { colors, mode } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const lastPathRef = useRef<string | null>(null);
   const rootState = useRootNavigationState();
   const { session, loading } = useAuth();
   const navReady = Boolean(rootState?.key);
@@ -52,6 +56,13 @@ function RootLayoutContent() {
     Platform.OS === "web" &&
     pathname !== "/" &&
     !publicRoutes.includes(pathname);
+
+  useEffect(() => {
+    if (!pathname) return;
+    if (lastPathRef.current === pathname) return;
+    lastPathRef.current = pathname;
+    logNavigation(pathname);
+  }, [pathname]);
 
   useEffect(() => {
     if (!navReady) return;
@@ -192,6 +203,7 @@ textarea:-webkit-autofill:active {
 
 export default Sentry.wrap(function RootLayout() {
   useEffect(() => {
+    setSentryBaseTags();
     const globalHandler = (global as {
       ErrorUtils?: {
         setGlobalHandler?: (

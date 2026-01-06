@@ -61,6 +61,8 @@ import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useSaveToast } from "../../src/ui/save-toast";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
+import { logAction } from "../../src/observability/breadcrumbs";
+import { measure } from "../../src/observability/perf";
 
 const toLines = (value: string) =>
   value
@@ -1106,12 +1108,16 @@ export default function TrainingList() {
     };
 
     if (editingId) {
-      await updateTrainingPlan(plan);
+      await measure("updateTrainingPlan", () => updateTrainingPlan(plan));
     } else {
-      await saveTrainingPlan(plan);
+      await measure("saveTrainingPlan", () => saveTrainingPlan(plan));
       setLastCreatedPlanId(plan.id);
       setLastCreatedClassId(classId);
     }
+    logAction(editingId ? "Editar plano de aula" : "Salvar plano de aula", {
+      planId: plan.id,
+      classId,
+    });
     void notifyTrainingSaved();
     showSaveToast({
       message: "Plano salvo com sucesso.",
@@ -1164,10 +1170,16 @@ export default function TrainingList() {
       createdAt: editingTemplateCreatedAt ?? nowIso,
     };
     if (editingTemplateId) {
-      await updateTrainingTemplate(template);
+      await measure("updateTrainingTemplate", () =>
+        updateTrainingTemplate(template)
+      );
     } else {
-      await saveTrainingTemplate(template);
+      await measure("saveTrainingTemplate", () => saveTrainingTemplate(template));
     }
+    logAction(editingTemplateId ? "Editar modelo" : "Salvar modelo", {
+      templateId: template.id,
+      ageBand: template.ageBand,
+    });
     const templatesDb = await getTrainingTemplates();
     setTemplateItems(templatesDb);
     setEditingTemplateId(null);
@@ -1208,8 +1220,9 @@ export default function TrainingList() {
         }
       },
       onConfirm: async () => {
-        await deleteTrainingPlan(plan.id);
+        await measure("deleteTrainingPlan", () => deleteTrainingPlan(plan.id));
         await reload();
+        logAction("Excluir treino", { planId: plan.id, classId: plan.classId });
       },
       onUndo: async () => {
         await reload();
@@ -1335,13 +1348,15 @@ export default function TrainingList() {
       },
       onConfirm: async () => {
         if (source === "custom") {
-          await deleteTrainingTemplate(id);
+          await measure("deleteTrainingTemplate", () => deleteTrainingTemplate(id));
           const templatesDb = await getTrainingTemplates();
           setTemplateItems(templatesDb);
+          logAction("Excluir modelo", { templateId: id, source });
         } else {
-          await hideTrainingTemplate(id);
+          await measure("hideTrainingTemplate", () => hideTrainingTemplate(id));
           const hidden = await getHiddenTemplates();
           setHiddenTemplates(hidden);
+          logAction("Ocultar modelo", { templateId: id, source });
         }
       },
       onUndo: async () => {
@@ -1377,9 +1392,10 @@ export default function TrainingList() {
       cooldownTime: templateCooldownTime.trim(),
       createdAt: new Date().toISOString(),
     };
-    await saveTrainingTemplate(copy);
+    await measure("saveTrainingTemplate", () => saveTrainingTemplate(copy));
     const templatesDb = await getTrainingTemplates();
     setTemplateItems(templatesDb);
+    logAction("Duplicar modelo", { templateId: copy.id, ageBand: copy.ageBand });
     Alert.alert("Modelo duplicado", "Aparece em Modelos prontos.");
   };
 
@@ -1480,12 +1496,18 @@ export default function TrainingList() {
       createdAt: templateEditorCreatedAt ?? nowIso,
     };
     if (templateEditorId) {
-      await updateTrainingTemplate(template);
+      await measure("updateTrainingTemplate", () =>
+        updateTrainingTemplate(template)
+      );
     } else {
-      await saveTrainingTemplate(template);
+      await measure("saveTrainingTemplate", () => saveTrainingTemplate(template));
     }
     const templatesDb = await getTrainingTemplates();
     setTemplateItems(templatesDb);
+    logAction(templateEditorId ? "Editar modelo" : "Salvar modelo", {
+      templateId: template.id,
+      ageBand: template.ageBand,
+    });
     closeTemplateEditor();
     setTemplateEditorId(null);
     setTemplateEditorCreatedAt(null);
@@ -2897,10 +2919,16 @@ export default function TrainingList() {
               applyDays,
               applyDate,
             };
-            await updateTrainingPlan(updated);
+            await measure("applyTrainingPlan", () => updateTrainingPlan(updated));
             await createCalendarEvent(updated);
             await reload();
             closeApplyModal();
+            logAction("Aplicar treino", {
+              planId: updated.id,
+              classId: applyClassId,
+              applyDate,
+              daysCount: applyDays.length,
+            });
             showSaveToast({
               message: "Treino aplicado com sucesso.",
               actionLabel: "Ver aula do dia",

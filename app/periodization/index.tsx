@@ -23,6 +23,8 @@ import { getUnitPalette } from "../../src/ui/unit-colors";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useGuidance } from "../../src/ui/guidance";
+import { logAction } from "../../src/observability/breadcrumbs";
+import { measure } from "../../src/observability/perf";
 
 type VolumeLevel = "baixo" | "medio" | "alto";
 
@@ -817,16 +819,21 @@ export default function PeriodizationScreen() {
     setIsSavingWeek(true);
     try {
       if (editingPlanId) {
-        await updateClassPlan(plan);
+        await measure("updateClassPlan", () => updateClassPlan(plan));
         setClassPlans((prev) =>
           prev
             .map((item) => (item.id === editingPlanId ? plan : item))
             .sort((a, b) => a.weekNumber - b.weekNumber)
         );
       } else {
-        await createClassPlan(plan);
+        await measure("createClassPlan", () => createClassPlan(plan));
         setClassPlans((prev) => [...prev, plan].sort((a, b) => a.weekNumber - b.weekNumber));
       }
+      logAction("Salvar periodizacao", {
+        classId: selectedClass.id,
+        weekNumber: editingWeek,
+        source: plan.source,
+      });
       setShowWeekEditor(false);
       setEditingPlanId(null);
     } finally {
@@ -1034,9 +1041,15 @@ export default function PeriodizationScreen() {
     });
     setIsSavingPlans(true);
     try {
-      await deleteClassPlansByClass(selectedClass.id);
-      await saveClassPlans(plans);
+      await measure("deleteClassPlansByClass", () =>
+        deleteClassPlansByClass(selectedClass.id)
+      );
+      await measure("saveClassPlans", () => saveClassPlans(plans));
       setClassPlans(plans);
+      logAction("Regerar planejamento", {
+        classId: selectedClass.id,
+        weeks: plans.length,
+      });
     } finally {
       setIsSavingPlans(false);
     }

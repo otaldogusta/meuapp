@@ -112,6 +112,9 @@ export default function CalendarScreen() {
     () => startOfWeek(targetDate ? new Date(targetDate) : new Date()),
     [targetDate]
   );
+  const unitLabel = useCallback((value?: string) => {
+    return value && value.trim() ? value.trim() : "Sem unidade";
+  }, []);
   const classById = useMemo(() => {
     const map: Record<string, ClassGroup> = {};
     classes.forEach((item) => {
@@ -220,11 +223,6 @@ export default function CalendarScreen() {
     });
     return map;
   }, [sessionLogs]);
-
-  const unitLabel = useCallback((value?: string) => {
-    return value && value.trim() ? value.trim() : "Sem unidade";
-  }, []);
-
 
   const sortByTime = useCallback((a: ClassGroup, b: ClassGroup) => {
     const aParsed = parseTime(a.startTime || "");
