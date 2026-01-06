@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   ScrollView,
   Text,
   View,
@@ -16,11 +17,17 @@ import {
 } from "../../../src/db/seed";
 import type { ClassGroup, SessionLog, TrainingPlan } from "../../../src/core/models";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
+import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
+import { logAction } from "../../../src/observability/breadcrumbs";
+import { measure } from "../../../src/observability/perf";
+import { useSaveToast } from "../../../src/ui/save-toast";
 
 export default function SessionScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
   const router = useRouter();
   const { colors, mode } = useAppTheme();
+  const { showSaveToast } = useSaveToast();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
@@ -125,6 +132,62 @@ export default function SessionScreen() {
     ];
   }, [plan]);
 
+  const totalMinutes = durations.reduce((sum, value) => sum + value, 0);
+
+  const handleExportPdf = async () => {
+    if (!plan || !cls) return;
+    const dateLabel = sessionDate.split("-").reverse().join("/");
+    const dateObj = new Date(sessionDate + "T00:00:00");
+    const weekdayLabel = dateObj.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const html = sessionPlanHtml({
+      className: cls.name,
+      ageGroup: cls.ageBand,
+      unitLabel: cls.unit,
+      dateLabel: weekdayLabel,
+      title: plan.title,
+      totalTime: `${totalMinutes} min`,
+      blocks: [
+        {
+          title: "Aquecimento",
+          time: plan.warmupTime || `${durations[0]} min`,
+          items: warmup.map((name) => ({ name })),
+        },
+        {
+          title: "Parte principal",
+          time: plan.mainTime || `${durations[1]} min`,
+          items: main.map((name) => ({ name })),
+        },
+        {
+          title: "Volta a calma",
+          time: plan.cooldownTime || `${durations[2]} min`,
+          items: cooldown.map((name) => ({ name })),
+        },
+      ],
+    });
+
+    try {
+      const safeClass = safeFileName(cls.name);
+      const safeDate = safeFileName(sessionDate);
+      const fileName = `plano-aula-${safeClass}-${safeDate}.pdf`;
+      await measure("exportSessionPdf", () =>
+        exportPdf({
+          html,
+          fileName,
+        })
+      );
+      logAction("Exportar PDF", { classId: cls.id, date: sessionDate });
+      showSaveToast({ message: "PDF gerado com sucesso.", variant: "success" });
+    } catch (error) {
+      showSaveToast({ message: "Nao foi possivel gerar o PDF.", variant: "error" });
+      Alert.alert("Falha ao exportar PDF", "Tente novamente.");
+    }
+  };
+
   useEffect(() => {
     setRemainingSec(durations[activeIndex] * 60);
     setRunning(false);
@@ -191,12 +254,30 @@ export default function SessionScreen() {
             marginBottom: 12,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontSize: 14, opacity: 0.85 }}>
-            Cronometro do bloco
-          </Text>
-          <Text style={{ color: colors.primaryText, fontSize: 28, fontWeight: "700" }}>
-            {formatTime(remainingSec)}
-          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.primaryText, fontSize: 14, opacity: 0.85 }}>
+                Cronometro do bloco
+              </Text>
+              <Text style={{ color: colors.primaryText, fontSize: 28, fontWeight: "700" }}>
+                {formatTime(remainingSec)}
+              </Text>
+            </View>
+            <Pressable
+              onPress={handleExportPdf}
+              style={{
+                alignSelf: "flex-start",
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ fontWeight: "700", color: colors.text }}>
+                Exportar PDF
+              </Text>
+            </Pressable>
+          </View>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             <Pressable
               onPress={() => setRunning((prev) => !prev)}
