@@ -20,7 +20,7 @@ import type { ClassGroup, SessionLog, TrainingPlan } from "../../../src/core/mod
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
-import { SessionPlanDocument } from "../../../src/pdf/web/session-plan-document";
+import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useSaveToast } from "../../../src/ui/save-toast";
