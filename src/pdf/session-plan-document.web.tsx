@@ -1,11 +1,13 @@
 import React from "react";
+// Use the browser bundle to avoid yoga's import.meta in dev web.
+// @ts-expect-error no types for browser bundle entry
 import {
   Document,
   Page,
   StyleSheet,
   Text,
   View,
-} from "@react-pdf/renderer";
+} from "@react-pdf/renderer/lib/react-pdf.browser.min";
 import type { SessionPlanPdfData } from "./templates/session-plan";
 
 const styles = StyleSheet.create({
@@ -112,7 +114,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
           ) : null}
           <View style={styles.card}>
             <Text style={styles.label}>Tempo total</Text>
-            <Text style={styles.value}>{data.totalTime ?? "—"}</Text>
+            <Text style={styles.value}>{data.totalTime ?? "-"}</Text>
           </View>
           {hasObjective ? (
             <View style={styles.card}>
