@@ -8,7 +8,7 @@ const config = getSentryExpoConfig(__dirname);
 config.resolver.unstable_enablePackageExports = false;
 config.resolver.extraNodeModules = {
   "lodash/isEmpty": require.resolve("lodash/isEmpty"),
-  "yoga-layout/load": require.resolve("yoga-layout/dist/src/load.js"),
+  "yoga-layout/load": require.resolve("yoga-layout/load"),
 };
 
 module.exports = config;
