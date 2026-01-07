@@ -65,6 +65,27 @@ e regenere com:
 npx patch-package yoga-layout
 ```
 
+## UI pattern: dropdown ancorado
+
+Padrao usado para selects com lista fixa e scroll interno, igual na tela de
+periodizacao e no cadastro de turmas.
+
+Regras do padrao:
+- Lista abre abaixo do campo (ancorada no trigger).
+- So um dropdown aberto por vez.
+- Scroll acontece dentro da lista, nao na tela.
+- Ao rolar a tela, a lista acompanha o campo (recalcula layout).
+
+Onde usar como referencia:
+- `src/ui/AnchoredDropdown.tsx`
+- `app/periodization/index.tsx`
+- `app/classes/index.tsx`
+
+Checklist rapido ao aplicar em outra tela:
+- Definir `triggerRef` + `triggerLayout` para cada campo.
+- Usar `toggleNewPicker` (ou equivalente) para fechar outras listas.
+- No `ScrollView`, chamar `syncPickerLayouts` no `onScroll`.
+
 ## Get a fresh project
 
 When you're ready, run:

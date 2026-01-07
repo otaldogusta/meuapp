@@ -22,6 +22,7 @@ import { Button } from "../../src/ui/Button";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -120,10 +121,11 @@ export default function AssistantScreen() {
     };
   }, []);
 
-  const className = useMemo(
-    () => classes.find((item) => item.id === classId)?.name ?? "Turma",
+  const selectedClass = useMemo(
+    () => classes.find((item) => item.id === classId) ?? null,
     [classes, classId]
   );
+  const className = selectedClass?.name ?? "Turma";
 
   const sortedClasses = useMemo(
     () => sortClassesByAgeBand(classes),
@@ -263,9 +265,12 @@ export default function AssistantScreen() {
                   backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
                 }}
               >
-                <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                  {item.name}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                    {item.name}
+                  </Text>
+                  <ClassGenderBadge gender={item.gender} size="sm" />
+                </View>
               </Pressable>
             );
           })}
@@ -315,9 +320,14 @@ export default function AssistantScreen() {
             <Text style={{ color: colors.muted, marginTop: 6 }}>
               {draft.title}
             </Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>
-              {"Turma: " + className}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+              <Text style={{ color: colors.muted }}>
+                {"Turma: " + className}
+              </Text>
+              {selectedClass ? (
+                <ClassGenderBadge gender={selectedClass.gender} size="sm" />
+              ) : null}
+            </View>
             <View
               style={{
                 marginTop: 10,

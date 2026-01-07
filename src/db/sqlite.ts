@@ -9,11 +9,13 @@ export function initDb() {
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
       ageBand TEXT NOT NULL,
+      gender TEXT NOT NULL DEFAULT 'misto',
       daysPerWeek INTEGER NOT NULL,
       goal TEXT NOT NULL,
       equipment TEXT NOT NULL,
       level INTEGER NOT NULL,
       unit TEXT NOT NULL DEFAULT '',
+      modality TEXT NOT NULL DEFAULT 'fitness',
       unitId TEXT NOT NULL DEFAULT '',
       mvLevel TEXT NOT NULL DEFAULT '',
       cycleStartDate TEXT NOT NULL DEFAULT '',
@@ -104,6 +106,16 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE classes ADD COLUMN unit TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN modality TEXT NOT NULL DEFAULT 'fitness'"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN gender TEXT NOT NULL DEFAULT 'misto'"
     );
   } catch {}
   try {

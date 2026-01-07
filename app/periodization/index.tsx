@@ -25,6 +25,8 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useGuidance } from "../../src/ui/guidance";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 
 type VolumeLevel = "baixo" | "medio" | "alto";
 
@@ -381,6 +383,8 @@ export default function PeriodizationScreen() {
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showMesoPicker, setShowMesoPicker] = useState(false);
   const [showMicroPicker, setShowMicroPicker] = useState(false);
+  const isPickerOpen =
+    showUnitPicker || showClassPicker || showMesoPicker || showMicroPicker;
   const [classPickerTop, setClassPickerTop] = useState(0);
   const [unitPickerTop, setUnitPickerTop] = useState(0);
   const containerRef = useRef<View>(null);
@@ -434,6 +438,58 @@ export default function PeriodizationScreen() {
     useCollapsibleAnimation(showMesoPicker);
   const { animatedStyle: microPickerAnimStyle, isVisible: showMicroPickerContent } =
     useCollapsibleAnimation(showMicroPicker);
+
+  const syncPickerLayouts = useCallback(() => {
+    if (!isPickerOpen) return;
+    requestAnimationFrame(() => {
+      if (showClassPicker) {
+        classTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setClassTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showUnitPicker) {
+        unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setUnitTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showMesoPicker) {
+        mesoTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setMesoTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showMicroPicker) {
+        microTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setMicroTriggerLayout({ x, y, width, height });
+        });
+      }
+      containerRef.current?.measureInWindow((x, y) => {
+        setContainerWindow({ x, y });
+      });
+    });
+  }, [
+    isPickerOpen,
+    showClassPicker,
+    showUnitPicker,
+    showMesoPicker,
+    showMicroPicker,
+  ]);
+
+  const closeAllPickers = useCallback(() => {
+    setShowUnitPicker(false);
+    setShowClassPicker(false);
+    setShowMesoPicker(false);
+    setShowMicroPicker(false);
+  }, []);
+
+  const togglePicker = useCallback(
+    (target: "unit" | "class" | "meso" | "micro") => {
+      setShowUnitPicker((prev) => (target === "unit" ? !prev : false));
+      setShowClassPicker((prev) => (target === "class" ? !prev : false));
+      setShowMesoPicker((prev) => (target === "meso" ? !prev : false));
+      setShowMicroPicker((prev) => (target === "micro" ? !prev : false));
+    },
+    []
+  );
 
   useEffect(() => {
     if (!showClassPicker) return;
@@ -924,29 +980,32 @@ export default function PeriodizationScreen() {
         onSelect: (value: ClassGroup) => void;
         isFirst?: boolean;
       }) {
-        return (
-          <Pressable
-            onPress={() => onSelect(cls)}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 10,
-              borderRadius: 10,
-              margin: isFirst ? 6 : 2,
-              backgroundColor: active ? colors.primaryBg : "transparent",
-            }}
-          >
-            <Text
+          return (
+            <Pressable
+              onPress={() => onSelect(cls)}
               style={{
-                color: active ? colors.primaryText : colors.text,
-                fontSize: 12,
-                fontWeight: active ? "700" : "500",
+                paddingVertical: 8,
+                paddingHorizontal: 10,
+                borderRadius: 10,
+                margin: isFirst ? 6 : 2,
+                backgroundColor: active ? colors.primaryBg : "transparent",
               }}
             >
-              {cls.name}
-            </Text>
-          </Pressable>
-        );
-      }),
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                <Text
+                  style={{
+                    color: active ? colors.primaryText : colors.text,
+                    fontSize: 12,
+                    fontWeight: active ? "700" : "500",
+                  }}
+                >
+                  {cls.name}
+                </Text>
+                <ClassGenderBadge gender={cls.gender} />
+              </View>
+            </Pressable>
+          );
+        }),
     [colors]
   );
 
@@ -1108,15 +1167,14 @@ export default function PeriodizationScreen() {
       : "--";
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <View ref={containerRef} style={{ flex: 1 }}>
+    <SafeAreaView
+      style={{ flex: 1, padding: 16, backgroundColor: colors.background, overflow: "visible" }}
+    >
+      <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
         <Pressable
           onPress={() => {
-            if (!showUnitPicker && !showClassPicker && !showMesoPicker && !showMicroPicker) return;
-            setShowUnitPicker(false);
-            setShowClassPicker(false);
-            setShowMesoPicker(false);
-            setShowMicroPicker(false);
+            if (!isPickerOpen) return;
+            closeAllPickers();
           }}
           pointerEvents={
             showUnitPicker || showClassPicker || showMesoPicker || showMicroPicker
@@ -1135,14 +1193,7 @@ export default function PeriodizationScreen() {
         <ScrollView
           contentContainerStyle={{ gap: 16, paddingBottom: 24 }}
           style={{ zIndex: 1 }}
-          onScroll={() => {
-            if (showUnitPicker || showClassPicker || showMesoPicker || showMicroPicker) {
-              setShowUnitPicker(false);
-              setShowClassPicker(false);
-              setShowMesoPicker(false);
-              setShowMicroPicker(false);
-            }
-          }}
+          onScroll={syncPickerLayouts}
           scrollEventThrottle={16}
         >
         <View style={{ gap: 6 }}>
@@ -1170,10 +1221,13 @@ export default function PeriodizationScreen() {
           ].map((tab) => {
             const selected = activeTab === tab.id;
             return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setActiveTab(tab.id as PeriodizationTab)}
-                style={{
+                <Pressable
+                  key={tab.id}
+                  onPress={() => {
+                    closeAllPickers();
+                    setActiveTab(tab.id as PeriodizationTab);
+                  }}
+                  style={{
                   flex: 1,
                   paddingVertical: 8,
                   borderRadius: 999,
@@ -1262,10 +1316,7 @@ export default function PeriodizationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
               <View ref={classTriggerRef} style={{ position: "relative" }}>
                 <Pressable
-                  onPress={() => {
-                    setShowClassPicker((prev) => !prev);
-                    setShowUnitPicker(false);
-                  }}
+                  onPress={() => togglePicker("class")}
                   onLayout={(event) => {
                     setClassPickerTop(event.nativeEvent.layout.height);
                   }}
@@ -1279,15 +1330,20 @@ export default function PeriodizationScreen() {
                     borderColor: colors.border,
                   }}
                 >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
-                      {selectedClass?.name ?? "Selecione"}
-                    </Text>
-                    <Animated.View
-                      style={{
-                        transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }],
-                      }}
-                    >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}>
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                          {selectedClass?.name ?? "Selecione"}
+                        </Text>
+                        {selectedClass ? (
+                          <ClassGenderBadge gender={selectedClass.gender} />
+                        ) : null}
+                      </View>
+                      <Animated.View
+                        style={{
+                          transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }],
+                        }}
+                      >
                       <Ionicons name="chevron-down" size={16} color={colors.muted} />
                     </Animated.View>
                   </View>
@@ -1308,10 +1364,7 @@ export default function PeriodizationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
               <View ref={unitTriggerRef} style={{ position: "relative" }}>
                 <Pressable
-                  onPress={() => {
-                    setShowUnitPicker((prev) => !prev);
-                    setShowClassPicker(false);
-                  }}
+                  onPress={() => togglePicker("unit")}
                   onLayout={(event) => {
                     setUnitPickerTop(event.nativeEvent.layout.height);
                   }}
@@ -1354,10 +1407,7 @@ export default function PeriodizationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>Mesociclo</Text>
               <View ref={mesoTriggerRef} style={{ position: "relative" }}>
                 <Pressable
-                  onPress={() => {
-                    setShowMesoPicker((prev) => !prev);
-                    setShowMicroPicker(false);
-                  }}
+                  onPress={() => togglePicker("meso")}
                   style={{
                     marginTop: 6,
                     paddingVertical: 10,
@@ -1392,10 +1442,7 @@ export default function PeriodizationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>Microciclo</Text>
               <View ref={microTriggerRef} style={{ position: "relative" }}>
                 <Pressable
-                  onPress={() => {
-                    setShowMicroPicker((prev) => !prev);
-                    setShowMesoPicker(false);
-                  }}
+                  onPress={() => togglePicker("micro")}
                   style={{
                     marginTop: 6,
                     paddingVertical: 10,
@@ -1873,191 +1920,119 @@ export default function PeriodizationScreen() {
         ) : null}
         </ScrollView>
 
-        {showClassPickerContent && classTriggerLayout ? (
-          <Animated.View
-            style={[
-              {
-                position: "absolute",
-                left: containerWindow ? classTriggerLayout.x - containerWindow.x : classTriggerLayout.x,
-                top: containerWindow
-                  ? classTriggerLayout.y - containerWindow.y + classTriggerLayout.height + 8
-                  : classTriggerLayout.y + classTriggerLayout.height + 8,
-                width: classTriggerLayout.width,
-                zIndex: 300,
-                elevation: 12,
-              },
-              classPickerAnimStyle,
-            ]}
-          >
-            <ScrollView
-              style={{ maxHeight: 180 }}
-              contentContainerStyle={{ padding: 6 }}
-              showsVerticalScrollIndicator
-            >
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                }}
-              >
-                {filteredClasses.length ? (
-                  filteredClasses.map((cls, index) => (
-                    <ClassOption
-                      key={cls.id}
-                      cls={cls}
-                      active={cls.id === selectedClassId}
-                      onSelect={handleSelectClass}
-                      isFirst={index === 0}
-                    />
-                  ))
-                ) : (
-                  <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-                    Nenhuma turma cadastrada.
-                  </Text>
-                )}
-              </View>
-            </ScrollView>
-          </Animated.View>
-        ) : null}
+        <AnchoredDropdown
+          visible={showClassPickerContent}
+          layout={classTriggerLayout}
+          container={containerWindow}
+          animationStyle={classPickerAnimStyle}
+          zIndex={300}
+          maxHeight={220}
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {filteredClasses.length ? (
+            filteredClasses.map((cls, index) => (
+              <ClassOption
+                key={cls.id}
+                cls={cls}
+                active={cls.id === selectedClassId}
+                onSelect={handleSelectClass}
+                isFirst={index === 0}
+              />
+            ))
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+              Nenhuma turma cadastrada.
+            </Text>
+          )}
+        </AnchoredDropdown>
 
-        {showUnitPickerContent && unitTriggerLayout ? (
-          <Animated.View
-            style={[
-              {
-                position: "absolute",
-                left: containerWindow ? unitTriggerLayout.x - containerWindow.x : unitTriggerLayout.x,
-                top: containerWindow
-                  ? unitTriggerLayout.y - containerWindow.y + unitTriggerLayout.height + 8
-                  : unitTriggerLayout.y + unitTriggerLayout.height + 8,
-                width: unitTriggerLayout.width,
-                zIndex: 300,
-                elevation: 12,
-              },
-              unitPickerAnimStyle,
-            ]}
-          >
-            <ScrollView
-              style={{ maxHeight: 180 }}
-              contentContainerStyle={{ padding: 6 }}
-              showsVerticalScrollIndicator
-            >
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                }}
-              >
-                {unitOptions.map((unit, index) => {
-                  const active = unit === selectedUnit;
-                  const palette =
-                    unit === "Todas"
-                      ? { bg: colors.primaryBg, text: colors.primaryText }
-                      : getUnitPalette(unit, colors);
-                  return (
-                    <UnitOption
-                      key={unit}
-                      unit={unit}
-                      active={active}
-                      palette={palette}
-                      onSelect={handleSelectUnit}
-                      isFirst={index === 0}
-                    />
-                  );
-                })}
-              </View>
-            </ScrollView>
-          </Animated.View>
-        ) : null}
+        <AnchoredDropdown
+          visible={showUnitPickerContent}
+          layout={unitTriggerLayout}
+          container={containerWindow}
+          animationStyle={unitPickerAnimStyle}
+          zIndex={300}
+          maxHeight={220}
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {unitOptions.map((unit, index) => {
+            const active = unit === selectedUnit;
+            const palette =
+              unit === "Todas"
+                ? { bg: colors.primaryBg, text: colors.primaryText }
+                : getUnitPalette(unit, colors);
+            return (
+              <UnitOption
+                key={unit}
+                unit={unit}
+                active={active}
+                palette={palette}
+                onSelect={handleSelectUnit}
+                isFirst={index === 0}
+              />
+            );
+          })}
+        </AnchoredDropdown>
 
-        {showMesoPickerContent && mesoTriggerLayout ? (
-          <Animated.View
-            style={[
-              {
-                position: "absolute",
-                left: containerWindow ? mesoTriggerLayout.x - containerWindow.x : mesoTriggerLayout.x,
-                top: containerWindow
-                  ? mesoTriggerLayout.y - containerWindow.y + mesoTriggerLayout.height + 8
-                  : mesoTriggerLayout.y + mesoTriggerLayout.height + 8,
-                width: mesoTriggerLayout.width,
-                zIndex: 999,
-                elevation: 999,
-              },
-              mesoPickerAnimStyle,
-            ]}
-          >
-            <ScrollView
-              style={{ maxHeight: 180 }}
-              contentContainerStyle={{ padding: 6, gap: 2 }}
-              showsVerticalScrollIndicator
-            >
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                }}
-              >
-                {cycleOptions.map((value, index) => (
-                  <MesoOption
-                    key={value}
-                    value={value}
-                    active={value === cycleLength}
-                    onSelect={handleSelectMeso}
-                    isFirst={index === 0}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          </Animated.View>
-        ) : null}
+        <AnchoredDropdown
+          visible={showMesoPickerContent}
+          layout={mesoTriggerLayout}
+          container={containerWindow}
+          animationStyle={mesoPickerAnimStyle}
+          zIndex={999}
+          maxHeight={220}
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4, gap: 2 }}
+        >
+          {cycleOptions.map((value, index) => (
+            <MesoOption
+              key={value}
+              value={value}
+              active={value === cycleLength}
+              onSelect={handleSelectMeso}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
 
-        {showMicroPickerContent && microTriggerLayout ? (
-          <Animated.View
-            style={[
-              {
-                position: "absolute",
-                left: containerWindow ? microTriggerLayout.x - containerWindow.x : microTriggerLayout.x,
-                top: containerWindow
-                  ? microTriggerLayout.y - containerWindow.y + microTriggerLayout.height + 8
-                  : microTriggerLayout.y + microTriggerLayout.height + 8,
-                width: microTriggerLayout.width,
-                zIndex: 999,
-                elevation: 999,
-              },
-              microPickerAnimStyle,
-            ]}
-          >
-            <ScrollView
-              style={{ maxHeight: 180 }}
-              contentContainerStyle={{ padding: 6, gap: 2 }}
-              showsVerticalScrollIndicator
-            >
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                }}
-              >
-                {sessionsOptions.map((value, index) => (
-                  <MicroOption
-                    key={value}
-                    value={value}
-                    active={value === sessionsPerWeek}
-                    onSelect={handleSelectMicro}
-                    isFirst={index === 0}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          </Animated.View>
-        ) : null}
+        <AnchoredDropdown
+          visible={showMicroPickerContent}
+          layout={microTriggerLayout}
+          container={containerWindow}
+          animationStyle={microPickerAnimStyle}
+          zIndex={999}
+          maxHeight={220}
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4, gap: 2 }}
+        >
+          {sessionsOptions.map((value, index) => (
+            <MicroOption
+              key={value}
+              value={value}
+              active={value === sessionsPerWeek}
+              onSelect={handleSelectMicro}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
       </View>
 
       <ModalSheet

@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -14,6 +14,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { deleteClassCascade, getClasses, saveClass } from "../../src/db/seed";
 import type { ClassGroup } from "../../src/core/models";
@@ -33,6 +34,8 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 
 export default function ClassesScreen() {
   const router = useRouter();
@@ -61,7 +64,9 @@ export default function ClassesScreen() {
   } = useCollapsibleAnimation(showNew);
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");
+  const [newModality, setNewModality] = useState<ClassGroup["modality"]>("voleibol");
   const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
+  const [newGender, setNewGender] = useState<ClassGroup["gender"]>("misto");
   const [newGoal, setNewGoal] = useState<ClassGroup["goal"]>("Fundamentos");
   const [newStartTime, setNewStartTime] = useState("14:00");
   const [newDuration, setNewDuration] = useState("60");
@@ -75,7 +80,9 @@ export default function ClassesScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
+  const [editModality, setEditModality] = useState<ClassGroup["modality"]>("voleibol");
   const [editAgeBand, setEditAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
+  const [editGender, setEditGender] = useState<ClassGroup["gender"]>("misto");
   const [editGoal, setEditGoal] = useState<ClassGroup["goal"]>("Fundamentos");
   const [editStartTime, setEditStartTime] = useState("14:00");
   const [editDuration, setEditDuration] = useState("60");
@@ -117,6 +124,16 @@ export default function ClassesScreen() {
     isVisible: showAllAgesContent,
   } = useCollapsibleAnimation(showAllAges, { translateY: -6 });
   const ageBandOptions = ["8-9", "10-12", "13-15", "16-18"];
+  const genderOptions: { value: ClassGroup["gender"]; label: string }[] = [
+    { value: "masculino", label: "Masculino" },
+    { value: "feminino", label: "Feminino" },
+    { value: "misto", label: "Misto" },
+  ];
+  const modalityOptions: { value: NonNullable<ClassGroup["modality"]>; label: string }[] =
+    [
+      { value: "voleibol", label: "Voleibol" },
+      { value: "fitness", label: "Fitness" },
+    ];
   const goals: ClassGroup["goal"][] = [
     "Fundamentos",
     "Forca Geral",
@@ -132,9 +149,97 @@ export default function ClassesScreen() {
   ];
   const durationOptions = ["60", "75", "90"];
   const cycleLengthOptions = [2, 3, 4, 5, 6, 8, 10, 12];
-  const mvLevelOptions = ["MV1", "MV2", "MV3"];
+  const mvLevelOptions = [
+    { value: "MV1", label: "Iniciante" },
+    { value: "MV2", label: "Intermediario" },
+    { value: "MV3", label: "Avancado" },
+  ];
   const [showNewCycleCalendar, setShowNewCycleCalendar] = useState(false);
   const [showEditCycleCalendar, setShowEditCycleCalendar] = useState(false);
+  const [showUnitFilterPicker, setShowUnitFilterPicker] = useState(false);
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
+  const [showCycleLengthPicker, setShowCycleLengthPicker] = useState(false);
+  const [showMvLevelPicker, setShowMvLevelPicker] = useState(false);
+  const [showAgeBandPicker, setShowAgeBandPicker] = useState(false);
+  const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [showModalityPicker, setShowModalityPicker] = useState(false);
+  const [showGoalPicker, setShowGoalPicker] = useState(false);
+  const [unitFilterLayout, setUnitFilterLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [durationTriggerLayout, setDurationTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [cycleLengthTriggerLayout, setCycleLengthTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [mvLevelTriggerLayout, setMvLevelTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [ageBandTriggerLayout, setAgeBandTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [genderTriggerLayout, setGenderTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [modalityTriggerLayout, setModalityTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [goalTriggerLayout, setGoalTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<View>(null);
+  const unitFilterTriggerRef = useRef<View>(null);
+  const durationTriggerRef = useRef<View>(null);
+  const cycleLengthTriggerRef = useRef<View>(null);
+  const mvLevelTriggerRef = useRef<View>(null);
+  const ageBandTriggerRef = useRef<View>(null);
+  const genderTriggerRef = useRef<View>(null);
+  const modalityTriggerRef = useRef<View>(null);
+  const goalTriggerRef = useRef<View>(null);
+  const {
+    animatedStyle: unitFilterAnimStyle,
+    isVisible: showUnitFilterPickerContent,
+  } = useCollapsibleAnimation(showUnitFilterPicker);
+  const { animatedStyle: durationPickerAnimStyle, isVisible: showDurationPickerContent } =
+    useCollapsibleAnimation(showDurationPicker);
+  const { animatedStyle: cycleLengthPickerAnimStyle, isVisible: showCycleLengthPickerContent } =
+    useCollapsibleAnimation(showCycleLengthPicker);
+  const { animatedStyle: mvLevelPickerAnimStyle, isVisible: showMvLevelPickerContent } =
+    useCollapsibleAnimation(showMvLevelPicker);
+  const { animatedStyle: ageBandPickerAnimStyle, isVisible: showAgeBandPickerContent } =
+    useCollapsibleAnimation(showAgeBandPicker);
+  const { animatedStyle: genderPickerAnimStyle, isVisible: showGenderPickerContent } =
+    useCollapsibleAnimation(showGenderPicker);
+  const { animatedStyle: modalityPickerAnimStyle, isVisible: showModalityPickerContent } =
+    useCollapsibleAnimation(showModalityPicker);
+  const { animatedStyle: goalPickerAnimStyle, isVisible: showGoalPickerContent } =
+    useCollapsibleAnimation(showGoalPicker);
 
   const units = useMemo(() => {
     const set = new Set<string>();
@@ -161,6 +266,23 @@ export default function ClassesScreen() {
     fontWeight: "600" as const,
     fontSize: 12,
   });
+  const selectFieldStyle = {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    gap: 8,
+  };
+  const customOptionLabel = "Personalizar";
+  const getOptionLabel = (
+    value: string | undefined,
+    options: { value: string; label: string }[]
+  ) => options.find((option) => option.value === value)?.label ?? value ?? "";
 
   const filteredClasses = useMemo(() => {
     if (unitFilter === "Todas") return classes;
@@ -184,6 +306,10 @@ export default function ClassesScreen() {
       .filter((goal) => goal && !goals.includes(goal))
       .slice(0, 4);
   }, [classes, goals, newAgeBand, newUnit]);
+  const goalOptions = useMemo(() => {
+    const list = [...goalSuggestions, ...goals];
+    return list.filter((item, index) => list.indexOf(item) === index);
+  }, [goalSuggestions, goals]);
   const editGoalSuggestions = useMemo(() => {
     const key = editUnit.trim();
     const matches = classes.filter((item) => {
@@ -201,6 +327,19 @@ export default function ClassesScreen() {
       .filter((goal) => goal && !goals.includes(goal))
       .slice(0, 4);
   }, [classes, editAgeBand, editUnit, goals]);
+
+  const inferModality = useCallback((item?: ClassGroup | null) => {
+    if (!item) return "voleibol";
+    if (item.modality) return item.modality;
+    const goal = (item.goal ?? "").toLowerCase();
+    const unit = (item.unit ?? "").toLowerCase();
+    if (goal.includes("fundamentos")) {
+      if (unit.includes("esperanca") || unit.includes("pinhais")) {
+        return "voleibol";
+      }
+    }
+    return "fitness";
+  }, []);
 
   const normalizeTimeInput = (value: string) => {
     const digits = value.replace(/[^\d]/g, "").slice(0, 4);
@@ -344,22 +483,26 @@ export default function ClassesScreen() {
     setFormError("");
     setSaving(true);
     try {
-      await saveClass({
-        name: newName.trim(),
-        unit: newUnit.trim() || "Sem unidade",
-        ageBand: newAgeBand,
-        daysOfWeek: newDays,
-        goal: newGoal,
+        await saveClass({
+          name: newName.trim(),
+          unit: newUnit.trim() || "Sem unidade",
+          modality: newModality ?? "voleibol",
+          ageBand: newAgeBand,
+          gender: newGender,
+          daysOfWeek: newDays,
+          goal: newGoal,
         startTime: timeValue,
         durationMinutes: durationValue,
         mvLevel: newMvLevel,
         cycleStartDate: newCycleStartDate || undefined,
         cycleLengthWeeks: cycleValue,
       });
-      Vibration.vibrate(60);
-      setNewName("");
-      setNewUnit("");
-      setNewAgeBand("8-9");
+        Vibration.vibrate(60);
+        setNewName("");
+        setNewUnit("");
+        setNewModality("voleibol");
+        setNewAgeBand("8-9");
+      setNewGender("misto");
       setNewGoal("Fundamentos");
       setNewDays([]);
       setNewStartTime("14:00");
@@ -379,7 +522,9 @@ export default function ClassesScreen() {
     setEditingClass(item);
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
+    setEditModality(inferModality(item));
     setEditAgeBand(item.ageBand ?? "8-9");
+    setEditGender(item.gender ?? "misto");
     setEditGoal(item.goal ?? "Fundamentos");
     setEditStartTime(item.startTime ?? "14:00");
     setEditDuration(String(item.durationMinutes ?? 60));
@@ -423,13 +568,15 @@ export default function ClassesScreen() {
     }
     setEditFormError("");
     setEditSaving(true);
-    try {
-      await updateClass(editingClass.id, {
-        name: editName.trim(),
-        unit: editUnit.trim() || "Sem unidade",
-        ageBand: editAgeBand,
-        daysOfWeek: editDays,
-        goal: editGoal,
+      try {
+        await updateClass(editingClass.id, {
+          name: editName.trim(),
+          unit: editUnit.trim() || "Sem unidade",
+          ageBand: editAgeBand,
+          gender: editGender,
+          modality: editModality ?? "fitness",
+          daysOfWeek: editDays,
+          goal: editGoal,
         startTime: timeValue,
         durationMinutes: durationValue,
         mvLevel: editMvLevel,
@@ -470,9 +617,211 @@ export default function ClassesScreen() {
     }, 10);
   };
 
+  const closeAllPickers = useCallback(() => {
+    setShowUnitFilterPicker(false);
+    setShowDurationPicker(false);
+    setShowCycleLengthPicker(false);
+    setShowMvLevelPicker(false);
+    setShowAgeBandPicker(false);
+    setShowGenderPicker(false);
+    setShowModalityPicker(false);
+    setShowGoalPicker(false);
+  }, []);
+
+  const toggleUnitFilter = useCallback(() => {
+    setShowDurationPicker(false);
+    setShowCycleLengthPicker(false);
+    setShowMvLevelPicker(false);
+    setShowAgeBandPicker(false);
+    setShowGenderPicker(false);
+    setShowModalityPicker(false);
+    setShowGoalPicker(false);
+    setShowUnitFilterPicker((prev) => !prev);
+  }, []);
+
+  const toggleNewPicker = useCallback(
+    (
+      target:
+        | "duration"
+        | "cycle"
+        | "level"
+        | "age"
+        | "gender"
+        | "modality"
+        | "goal"
+    ) => {
+      setShowUnitFilterPicker(false);
+      setShowDurationPicker((prev) => (target === "duration" ? !prev : false));
+      setShowCycleLengthPicker((prev) => (target === "cycle" ? !prev : false));
+      setShowMvLevelPicker((prev) => (target === "level" ? !prev : false));
+      setShowAgeBandPicker((prev) => (target === "age" ? !prev : false));
+      setShowGenderPicker((prev) => (target === "gender" ? !prev : false));
+      setShowModalityPicker((prev) => (target === "modality" ? !prev : false));
+      setShowGoalPicker((prev) => (target === "goal" ? !prev : false));
+    },
+    []
+  );
+
   const handleSelectUnit = useCallback((unit: string) => {
     setUnitFilter(unit);
+    setShowUnitFilterPicker(false);
   }, []);
+
+  const handleSelectDuration = useCallback(
+    (value: SelectOptionValue) => {
+      if (value === customOptionLabel) {
+        animateLayout();
+        setShowCustomDuration(true);
+        setShowDurationPicker(false);
+        return;
+      }
+      if (showCustomDuration) {
+        animateLayout();
+        setShowCustomDuration(false);
+      }
+      setNewDuration(String(value));
+      setShowDurationPicker(false);
+    },
+    [customOptionLabel, showCustomDuration]
+  );
+
+  const handleSelectCycleLength = useCallback((value: SelectOptionValue) => {
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(parsed)) setNewCycleLengthWeeks(parsed);
+    setShowCycleLengthPicker(false);
+  }, []);
+
+  const handleSelectMvLevel = useCallback((value: SelectOptionValue) => {
+    setNewMvLevel(String(value));
+    setShowMvLevelPicker(false);
+  }, []);
+
+  const handleSelectAgeBand = useCallback(
+    (value: SelectOptionValue) => {
+      if (value === customOptionLabel) {
+        animateLayout();
+        setShowAllAges(true);
+        setShowAgeBandPicker(false);
+        return;
+      }
+      if (showAllAges) {
+        animateLayout();
+        setShowAllAges(false);
+      }
+      setNewAgeBand(String(value));
+      setShowAgeBandPicker(false);
+    },
+    [customOptionLabel, showAllAges]
+  );
+
+  const handleSelectGender = useCallback((value: SelectOptionValue) => {
+    setNewGender(value as ClassGroup["gender"]);
+    setShowGenderPicker(false);
+  }, []);
+
+  const handleSelectModality = useCallback((value: SelectOptionValue) => {
+    setNewModality(value as ClassGroup["modality"]);
+    setShowModalityPicker(false);
+  }, []);
+
+  const handleSelectGoal = useCallback(
+    (value: SelectOptionValue) => {
+      if (value === customOptionLabel) {
+        animateLayout();
+        setShowAllGoals(true);
+        setShowGoalPicker(false);
+        return;
+      }
+      if (showAllGoals) {
+        animateLayout();
+        setShowAllGoals(false);
+      }
+      setNewGoal(String(value));
+      setShowGoalPicker(false);
+    },
+    [customOptionLabel, showAllGoals]
+  );
+
+  const syncPickerLayouts = useCallback(() => {
+    const hasPickerOpen =
+      showUnitFilterPicker ||
+      showDurationPicker ||
+      showCycleLengthPicker ||
+      showMvLevelPicker ||
+      showAgeBandPicker ||
+      showGenderPicker ||
+      showModalityPicker ||
+      showGoalPicker;
+    if (!hasPickerOpen) return;
+    requestAnimationFrame(() => {
+      if (showUnitFilterPicker) {
+        unitFilterTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setUnitFilterLayout({ x, y, width, height });
+        });
+      }
+      if (showDurationPicker) {
+        durationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setDurationTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showCycleLengthPicker) {
+        cycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setCycleLengthTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showMvLevelPicker) {
+        mvLevelTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setMvLevelTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showAgeBandPicker) {
+        ageBandTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setAgeBandTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showGenderPicker) {
+        genderTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setGenderTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showModalityPicker) {
+        modalityTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setModalityTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showGoalPicker) {
+        goalTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setGoalTriggerLayout({ x, y, width, height });
+        });
+      }
+      containerRef.current?.measureInWindow((x, y) => {
+        setContainerWindow({ x, y });
+      });
+    });
+  }, [
+    showUnitFilterPicker,
+    showDurationPicker,
+    showCycleLengthPicker,
+    showMvLevelPicker,
+    showAgeBandPicker,
+    showGenderPicker,
+    showModalityPicker,
+    showGoalPicker,
+  ]);
+
+  useEffect(() => {
+    syncPickerLayouts();
+  }, [
+    showUnitFilterPicker,
+    showDurationPicker,
+    showCycleLengthPicker,
+    showMvLevelPicker,
+    showAgeBandPicker,
+    showGenderPicker,
+    showModalityPicker,
+    showGoalPicker,
+    syncPickerLayouts,
+  ]);
 
   const handleOpenClass = useCallback(
     (item: ClassGroup) => {
@@ -506,25 +855,82 @@ export default function ClassesScreen() {
     [router]
   );
 
-  const UnitChip = useMemo(
+  const UnitOption = useMemo(
     () =>
-      memo(function UnitChipItem({
+      memo(function UnitOptionItem({
         unit,
         active,
         palette,
         onSelect,
+        isFirst,
       }: {
         unit: string;
         active: boolean;
         palette: { bg: string; text: string };
         onSelect: (value: string) => void;
+        isFirst?: boolean;
       }) {
         return (
           <Pressable
             onPress={() => onSelect(unit)}
-            style={getChipStyle(active, palette)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? palette.bg : "transparent",
+            }}
           >
-            <Text style={getChipTextStyle(active, palette)}>{unit}</Text>
+            <Text
+              style={{
+                color: active ? palette.text : colors.text,
+                fontSize: 12,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {unit}
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
+  const SelectOption = useMemo(
+    () =>
+      memo(function SelectOptionItem({
+        label,
+        value,
+        active,
+        onSelect,
+        isFirst,
+      }: {
+        label: string;
+        value: SelectOptionValue;
+        active: boolean;
+        onSelect: (value: SelectOptionValue) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(value)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? colors.primaryBg : "transparent",
+            }}
+          >
+            <Text
+              style={{
+                color: active ? colors.primaryText : colors.text,
+                fontSize: 12,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {label}
+            </Text>
           </Pressable>
         );
       }),
@@ -586,19 +992,20 @@ export default function ClassesScreen() {
                 </Text>
               </View>
             ) : null}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <View
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 999,
-                  backgroundColor: palette.bg,
-                }}
-              />
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {timeLabel}
-              </Text>
-            </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: palette.bg,
+                  }}
+                />
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  {timeLabel}
+                </Text>
+                <ClassGenderBadge gender={item.gender} />
+              </View>
             <Text style={{ color: colors.muted, marginTop: 6, fontSize: 12 }}>
               {"Faixa: " + item.ageBand}
             </Text>
@@ -636,13 +1043,15 @@ export default function ClassesScreen() {
     [colors]
   );
 
-  const isDirty =
-    newName.trim() ||
-    newUnit.trim() ||
-    newStartTime.trim() !== "14:00" ||
-    newDuration.trim() !== "60" ||
-    newAgeBand.trim() !== "8-9" ||
+    const isDirty =
+      newName.trim() ||
+      newUnit.trim() ||
+      newModality !== "voleibol" ||
+      newStartTime.trim() !== "14:00" ||
+      newDuration.trim() !== "60" ||
+      newAgeBand.trim() !== "8-9" ||
     newMvLevel.trim() !== "MV1" ||
+    newGender !== "misto" ||
     newGoal.trim() !== "Fundamentos" ||
     newDays.length > 0 ||
     newCycleStartDate.trim() ||
@@ -668,13 +1077,16 @@ export default function ClassesScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <ScrollView
-        contentContainerStyle={{
-          gap: 16,
-          paddingBottom: showNew ? 120 : 24,
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
+      <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
+        <ScrollView
+          contentContainerStyle={{
+            gap: 16,
+            paddingBottom: showNew ? 120 : 24,
+          }}
+          keyboardShouldPersistTaps="handled"
+          onScroll={syncPickerLayouts}
+          scrollEventThrottle={16}
+        >
         <View style={{ marginBottom: 4 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
             Turmas
@@ -682,440 +1094,410 @@ export default function ClassesScreen() {
           <Text style={{ color: colors.muted, marginTop: 4 }}>Lista completa</Text>
         </View>
 
-        <View
-          style={[
-            getSectionCardStyle(colors, "neutral"),
-            { borderLeftWidth: 3, borderLeftColor: "#ffffff" },
-          ]}
-        >
-          <Pressable
-            onPress={() => (showNew ? confirmCloseForm() : setShowNew(true))}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              backgroundColor: showNew ? colors.secondaryBg : colors.primaryBg,
-              borderWidth: showNew ? 1 : 0,
-              borderColor: colors.border,
-            }}
+        <View style={{ gap: 12 }}>
+          <View
+            style={[
+              getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
+              { borderLeftWidth: 3, borderLeftColor: "#ffffff" },
+            ]}
           >
-            <View style={{ gap: 4 }}>
-              <Text
-                style={{
-                  color: showNew ? colors.text : colors.primaryText,
-                  fontWeight: "700",
-                  fontSize: 16,
-                }}
-              >
-                {showNew ? "Fechar cadastro" : "+ Nova turma"}
-              </Text>
-              <Text
-                style={{
-                  color: showNew ? colors.muted : colors.primaryText,
-                  fontSize: 12,
-                }}
-              >
-                {showNew ? "Voltar para a lista" : "Cadastre uma nova turma agora"}
-              </Text>
-            </View>
-          </Pressable>
-          {showNewContent ? (
-            <Animated.View style={[newFormAnimStyle, { gap: 12 }]}>
-              <TextInput
-                placeholder="Nome da turma"
-                value={newName}
-                onChangeText={setNewName}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              <TextInput
-                placeholder="Unidade (ex: Rede Esperanca)"
-                value={newUnit}
-                onChangeText={setNewUnit}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              <TextInput
-                placeholder="Horario (HH:MM)"
-                value={newStartTime}
-                onChangeText={(value) =>
-                  setNewStartTime(normalizeTimeInput(value))
-                }
-                keyboardType="numeric"
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              <Text style={{ fontSize: 13, color: colors.muted }}>Duracao</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {durationOptions.map((item) => {
-                  const active = newDuration === item;
-                  return (
-                    <Pressable
-                      key={item}
-                      onPress={() => {
-                        setNewDuration(item);
-                        setShowCustomDuration(false);
-                      }}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>
-                        {item + " min"}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-                <Pressable
-                  onPress={() => {
-                    animateLayout();
-                    setShowCustomDuration((prev) => !prev);
-                  }}
+            <Pressable
+              onPress={() => (showNew ? confirmCloseForm() : setShowNew(true))}
+              style={{
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                borderRadius: 14,
+                backgroundColor: showNew ? colors.secondaryBg : colors.primaryBg,
+                borderWidth: showNew ? 1 : 0,
+                borderColor: colors.border,
+              }}
+            >
+              <View style={{ gap: 4 }}>
+                <Text
                   style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
+                    color: showNew ? colors.text : colors.primaryText,
+                    fontWeight: "700",
+                    fontSize: 16,
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {showCustomDuration ? "−" : "+"}
-                  </Text>
-                </Pressable>
-              </View>
-              {showCustomDurationContent ? (
-                <Animated.View style={customDurationAnimStyle}>
-                  <TextInput
-                    placeholder="Duracao (min)"
-                    value={newDuration}
-                    onChangeText={setNewDuration}
-                    keyboardType="numeric"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </Animated.View>
-              ) : null}
-              <Text style={{ fontSize: 13, color: colors.muted }}>
-                Data inicio do ciclo
-              </Text>
-              <DateInput
-                value={newCycleStartDate}
-                onChange={setNewCycleStartDate}
-                onOpenCalendar={() => setShowNewCycleCalendar(true)}
-                placeholder="DD/MM/AAAA"
-              />
-              <Text style={{ fontSize: 13, color: colors.muted }}>
-                Duracao do ciclo (semanas)
-              </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {cycleLengthOptions.map((value) => {
-                  const active = newCycleLengthWeeks === value;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => setNewCycleLengthWeeks(value)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>
-                        {value + " semanas"}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={{ fontSize: 13, color: colors.muted }}>Nivel MV</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {mvLevelOptions.map((value) => {
-                  const active = newMvLevel === value;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => setNewMvLevel(value)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>{value}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={{ fontSize: 13, color: colors.muted }}>Faixa etaria</Text>
-              {showAllAges ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {ageBandOptions.map((band) => {
-                    const active = newAgeBand === band;
-                    return (
-                      <Pressable
-                        key={band}
-                        onPress={() => setNewAgeBand(band)}
-                        style={getChipStyle(active)}
-                      >
-                        <Text style={getChipTextStyle(active)}>
-                          {band}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                  <Pressable
-                    onPress={() => {
-                      animateLayout();
-                      setShowAllAges((prev) => !prev);
-                    }}
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 13,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {showAllAges ? "−" : "+"}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {ageBandOptions.slice(0, 3).map((band) => {
-                      const active = newAgeBand === band;
-                      return (
-                        <Pressable
-                          key={band}
-                          onPress={() => setNewAgeBand(band)}
-                          style={getChipStyle(active)}
-                        >
-                          <Text style={getChipTextStyle(active)}>
-                            {band}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                    <Pressable
-                      onPress={() => {
-                        animateLayout();
-                        setShowAllAges((prev) => !prev);
-                      }}
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 13,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        {showAllAges ? "−" : "+"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </ScrollView>
-              )}
-              {showAllAgesContent ? (
-                <Animated.View style={allAgesAnimStyle}>
-                  <TextInput
-                    placeholder="Faixa etaria (ex: 14-16)"
-                    value={newAgeBand}
-                    onChangeText={setNewAgeBand}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </Animated.View>
-              ) : null}
-              <Text style={{ fontSize: 13, color: colors.muted }}>Dias da semana</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {dayNames.map((label, index) => {
-                  const active = newDays.includes(index);
-                  return (
-                    <Pressable
-                      key={label}
-                      onPress={() => toggleDay(index)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>
-                        {label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={{ fontSize: 13, color: colors.muted }}>Objetivo</Text>
-              {showAllGoals ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {goals.map((item) => {
-                    const active = newGoal === item;
-                    return (
-                      <Pressable
-                        key={item}
-                        onPress={() => setNewGoal(item)}
-                        style={getChipStyle(active)}
-                      >
-                        <Text style={getChipTextStyle(active)}>
-                          {item}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                  <Pressable
-                    onPress={() => {
-                      animateLayout();
-                      setShowAllGoals((prev) => !prev);
-                    }}
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 13,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {showAllGoals ? "−" : "+"}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {goals.slice(0, 4).map((item) => {
-                      const active = newGoal === item;
-                      return (
-                        <Pressable
-                          key={item}
-                          onPress={() => setNewGoal(item)}
-                          style={getChipStyle(active)}
-                        >
-                          <Text style={getChipTextStyle(active)}>
-                            {item}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                    <Pressable
-                      onPress={() => {
-                        animateLayout();
-                        setShowAllGoals((prev) => !prev);
-                      }}
-                      style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 13,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        {showAllGoals ? "−" : "+"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </ScrollView>
-              )}
-              {goalSuggestions.length ? (
-                <>
-                  <Text style={{ fontSize: 13, color: colors.muted }}>
-                    Sugestoes da turma
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {goalSuggestions.map((item) => (
-                      <Pressable
-                        key={item}
-                        onPress={() => setNewGoal(item)}
-                        style={getChipStyle(false)}
-                      >
-                        <Text style={getChipTextStyle(false)}>{item}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              ) : null}
-              {showAllGoalsContent ? (
-                <Animated.View style={allGoalsAnimStyle}>
-                  <TextInput
-                    placeholder="Objetivo (ex: Forca, Potencia)"
-                    value={newGoal}
-                    onChangeText={setNewGoal}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </Animated.View>
-              ) : null}
-              {formError ? (
-                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                  {formError}
+                  {showNew ? "Fechar cadastro" : "+ Nova turma"}
                 </Text>
-              ) : null}
-            </Animated.View>
-          ) : null}
-        </View>
-
-        <View style={getSectionCardStyle(colors, "info", { padding: 12 })}>
-          <Text style={{ fontSize: 13, color: colors.muted }}>Unidades</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {units.map((unit) => {
-              const active = unitFilter === unit;
-              const palette =
-                unit === "Todas"
-                  ? { bg: colors.primaryBg, text: colors.primaryText }
-                  : getUnitPalette(unit, colors);
-              return (
-                <UnitChip
-                  key={unit}
-                  unit={unit}
-                  active={active}
-                  palette={palette}
-                  onSelect={handleSelectUnit}
-                />
-              );
-            })}
+                <Text
+                  style={{
+                    color: showNew ? colors.muted : colors.primaryText,
+                    fontSize: 12,
+                  }}
+                >
+                  {showNew ? "Voltar para a lista" : "Cadastre uma nova turma agora"}
+                </Text>
+              </View>
+            </Pressable>
           </View>
         </View>
 
+        {showNewContent ? (
+          <View style={getSectionCardStyle(colors, "neutral")}>
+            <Animated.View style={[newFormAnimStyle, { gap: 12 }]}>
+              <View
+                style={{
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                }}
+              >
+                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Nome da turma</Text>
+                    <TextInput
+                      placeholder="Nome da turma"
+                      value={newName}
+                      onChangeText={setNewName}
+                      placeholderTextColor={colors.placeholder}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        padding: 12,
+                        borderRadius: 12,
+                        backgroundColor: colors.inputBg,
+                        color: colors.inputText,
+                      }}
+                    />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Unidade</Text>
+                    <TextInput
+                      placeholder="Unidade (ex: Rede Esperanca)"
+                      value={newUnit}
+                      onChangeText={setNewUnit}
+                      placeholderTextColor={colors.placeholder}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        padding: 12,
+                        borderRadius: 12,
+                        backgroundColor: colors.inputBg,
+                        color: colors.inputText,
+                      }}
+                    />
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Horario</Text>
+                    <TextInput
+                      placeholder="Horario (HH:MM)"
+                      value={newStartTime}
+                      onChangeText={(value) => setNewStartTime(normalizeTimeInput(value))}
+                      keyboardType="numeric"
+                      placeholderTextColor={colors.placeholder}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        padding: 12,
+                        borderRadius: 12,
+                        backgroundColor: colors.inputBg,
+                        color: colors.inputText,
+                      }}
+                    />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Duracao</Text>
+                    <View ref={durationTriggerRef}>
+                      <Pressable
+                        onPress={() => toggleNewPicker("duration")}
+                        style={selectFieldStyle}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                          {newDuration ? `${newDuration} min` : "Selecione"}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showDurationPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                    {showCustomDurationContent ? (
+                      <Animated.View style={customDurationAnimStyle}>
+                        <TextInput
+                          placeholder="Duracao (min)"
+                          value={newDuration}
+                          onChangeText={setNewDuration}
+                          keyboardType="numeric"
+                          placeholderTextColor={colors.placeholder}
+                          style={{
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            padding: 12,
+                            borderRadius: 12,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                          }}
+                        />
+                      </Animated.View>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Data inicio do ciclo</Text>
+                    <DateInput
+                      value={newCycleStartDate}
+                      onChange={setNewCycleStartDate}
+                      onOpenCalendar={() => setShowNewCycleCalendar(true)}
+                      placeholder="DD/MM/AAAA"
+                    />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>
+                      Duracao do ciclo (semanas)
+                    </Text>
+                    <View ref={cycleLengthTriggerRef}>
+                      <Pressable
+                        onPress={() => toggleNewPicker("cycle")}
+                        style={selectFieldStyle}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                          {newCycleLengthWeeks + " semanas"}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showCycleLengthPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Nivel</Text>
+                    <View ref={mvLevelTriggerRef}>
+                      <Pressable
+                        onPress={() => toggleNewPicker("level")}
+                        style={selectFieldStyle}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                          {getOptionLabel(newMvLevel, mvLevelOptions)}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showMvLevelPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Faixa etaria</Text>
+                    <View ref={ageBandTriggerRef}>
+                      <Pressable
+                        onPress={() => toggleNewPicker("age")}
+                        style={selectFieldStyle}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                          {newAgeBand || customOptionLabel}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showAgeBandPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                    {showAllAgesContent ? (
+                      <Animated.View style={allAgesAnimStyle}>
+                        <TextInput
+                          placeholder="Faixa etaria (ex: 14-16)"
+                          value={newAgeBand}
+                          onChangeText={setNewAgeBand}
+                          placeholderTextColor={colors.placeholder}
+                          style={{
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            padding: 12,
+                            borderRadius: 12,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                          }}
+                        />
+                      </Animated.View>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Genero</Text>
+                    <View ref={genderTriggerRef}>
+                      <Pressable
+                        onPress={() => toggleNewPicker("gender")}
+                        style={selectFieldStyle}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                          {getOptionLabel(newGender, genderOptions)}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showGenderPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: colors.muted }}>Modalidade</Text>
+                    <View ref={modalityTriggerRef}>
+                      <Pressable
+                        onPress={() => toggleNewPicker("modality")}
+                        style={selectFieldStyle}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                          {getOptionLabel(newModality, modalityOptions)}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showModalityPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                <View style={{ padding: 10, gap: 6 }}>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>Dias da semana</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {dayNames.map((label, index) => {
+                      const active = newDays.includes(index);
+                      return (
+                        <Pressable
+                          key={label}
+                          onPress={() => toggleDay(index)}
+                          style={getChipStyle(active)}
+                        >
+                          <Text style={getChipTextStyle(active)}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+                <View style={{ padding: 10, gap: 6 }}>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>Objetivo</Text>
+                  <View ref={goalTriggerRef}>
+                    <Pressable
+                      onPress={() => toggleNewPicker("goal")}
+                      style={selectFieldStyle}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {newGoal || customOptionLabel}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [{ rotate: showGoalPicker ? "180deg" : "0deg" }],
+                        }}
+                      />
+                    </Pressable>
+                  </View>
+                  {showAllGoalsContent ? (
+                    <Animated.View style={allGoalsAnimStyle}>
+                      <TextInput
+                        placeholder="Objetivo (ex: Forca, Potencia)"
+                        value={newGoal}
+                        onChangeText={setNewGoal}
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 12,
+                          borderRadius: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </Animated.View>
+                  ) : null}
+                </View>
+              </View>
+              {formError ? (
+                <Text style={{ color: colors.dangerText, fontSize: 12 }}>{formError}</Text>
+              ) : null}
+            </Animated.View>
+          </View>
+        ) : null}
+
+        <View style={getSectionCardStyle(colors, "info", { padding: 0, radius: 16 })}>
+          <View style={{ padding: 10 }}>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Unidades</Text>
+            <View ref={unitFilterTriggerRef} style={{ position: "relative" }}>
+              <Pressable
+                onPress={toggleUnitFilter}
+                style={{
+                  marginTop: 8,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                  {unitFilter}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={16}
+                  color={colors.muted}
+                  style={{ transform: [{ rotate: showUnitFilterPicker ? "180deg" : "0deg" }] }}
+                />
+              </Pressable>
+            </View>
+          </View>
+        </View>
         {grouped.map(([unit, items]) => {
           const palette = getUnitPalette(unit, colors);
           return (
@@ -1154,7 +1536,249 @@ export default function ClassesScreen() {
             </View>
           );
         })}
-      </ScrollView>
+        </ScrollView>
+
+        <AnchoredDropdown
+          visible={showUnitFilterPickerContent}
+          layout={unitFilterLayout}
+          container={containerWindow}
+          animationStyle={unitFilterAnimStyle}
+          zIndex={300}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {units.map((unit, index) => {
+            const active = unitFilter === unit;
+            const palette =
+              unit === "Todas"
+                ? { bg: colors.primaryBg, text: colors.primaryText }
+                : getUnitPalette(unit, colors);
+            return (
+              <UnitOption
+                key={unit}
+                unit={unit}
+                active={active}
+                palette={palette}
+                onSelect={handleSelectUnit}
+                isFirst={index === 0}
+              />
+            );
+          })}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showDurationPickerContent}
+          layout={durationTriggerLayout}
+          container={containerWindow}
+          animationStyle={durationPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {durationOptions.map((value, index) => (
+            <SelectOption
+              key={value}
+              label={`${value} min`}
+              value={value}
+              active={newDuration === value}
+              onSelect={handleSelectDuration}
+              isFirst={index === 0}
+            />
+          ))}
+          <SelectOption
+            label={customOptionLabel}
+            value={customOptionLabel}
+            active={showCustomDuration}
+            onSelect={handleSelectDuration}
+          />
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showCycleLengthPickerContent}
+          layout={cycleLengthTriggerLayout}
+          container={containerWindow}
+          animationStyle={cycleLengthPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {cycleLengthOptions.map((value, index) => (
+            <SelectOption
+              key={value}
+              label={`${value} semanas`}
+              value={value}
+              active={newCycleLengthWeeks === value}
+              onSelect={handleSelectCycleLength}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showMvLevelPickerContent}
+          layout={mvLevelTriggerLayout}
+          container={containerWindow}
+          animationStyle={mvLevelPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {mvLevelOptions.map((option, index) => (
+            <SelectOption
+              key={option.value}
+              label={option.label}
+              value={option.value}
+              active={newMvLevel === option.value}
+              onSelect={handleSelectMvLevel}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showAgeBandPickerContent}
+          layout={ageBandTriggerLayout}
+          container={containerWindow}
+          animationStyle={ageBandPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {ageBandOptions.map((band, index) => (
+            <SelectOption
+              key={band}
+              label={band}
+              value={band}
+              active={newAgeBand === band && !showAllAges}
+              onSelect={handleSelectAgeBand}
+              isFirst={index === 0}
+            />
+          ))}
+          <SelectOption
+            label={customOptionLabel}
+            value={customOptionLabel}
+            active={showAllAges}
+            onSelect={handleSelectAgeBand}
+          />
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showGenderPickerContent}
+          layout={genderTriggerLayout}
+          container={containerWindow}
+          animationStyle={genderPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {genderOptions.map((option, index) => (
+            <SelectOption
+              key={option.value}
+              label={option.label}
+              value={option.value}
+              active={newGender === option.value}
+              onSelect={handleSelectGender}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showModalityPickerContent}
+          layout={modalityTriggerLayout}
+          container={containerWindow}
+          animationStyle={modalityPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {modalityOptions.map((option, index) => (
+            <SelectOption
+              key={option.value}
+              label={option.label}
+              value={option.value}
+              active={newModality === option.value}
+              onSelect={handleSelectModality}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showGoalPickerContent}
+          layout={goalTriggerLayout}
+          container={containerWindow}
+          animationStyle={goalPickerAnimStyle}
+          zIndex={320}
+          maxHeight={260}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {goalOptions.map((goal, index) => (
+            <SelectOption
+              key={goal}
+              label={goal}
+              value={goal}
+              active={newGoal === goal && !showAllGoals}
+              onSelect={handleSelectGoal}
+              isFirst={index === 0}
+            />
+          ))}
+          <SelectOption
+            label={customOptionLabel}
+            value={customOptionLabel}
+            active={showAllGoals}
+            onSelect={handleSelectGoal}
+          />
+        </AnchoredDropdown>
+      </View>
       </KeyboardAvoidingView>
       {showNew ? (
         <View
@@ -1343,21 +1967,21 @@ export default function ClassesScreen() {
               );
             })}
           </View>
-          <Text style={{ fontSize: 13, color: colors.muted }}>Nivel MV</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {mvLevelOptions.map((value) => {
-              const active = editMvLevel === value;
-              return (
-                <Pressable
-                  key={value}
-                  onPress={() => setEditMvLevel(value)}
-                  style={getChipStyle(active)}
-                >
-                  <Text style={getChipTextStyle(active)}>{value}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+            <Text style={{ fontSize: 13, color: colors.muted }}>Nivel</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {mvLevelOptions.map((option) => {
+                const active = editMvLevel === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setEditMvLevel(option.value)}
+                    style={getChipStyle(active)}
+                  >
+                    <Text style={getChipTextStyle(active)}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           <Text style={{ fontSize: 13, color: colors.muted }}>Faixa etaria</Text>
           {editShowAllAges ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -1444,6 +2068,23 @@ export default function ClassesScreen() {
               }}
             />
           ) : null}
+          <Text style={{ fontSize: 13, color: colors.muted }}>Genero</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {genderOptions.map((option) => {
+              const active = editGender === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => setEditGender(option.value)}
+                  style={getChipStyle(active)}
+                >
+                  <Text style={getChipTextStyle(active)}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <Text style={{ fontSize: 13, color: colors.muted }}>Dias da semana</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {dayNames.map((label, index) => {
@@ -1455,6 +2096,21 @@ export default function ClassesScreen() {
                   style={getChipStyle(active)}
                 >
                   <Text style={getChipTextStyle(active)}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={{ fontSize: 13, color: colors.muted }}>Modalidade</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {modalityOptions.map((option) => {
+              const active = editModality === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => setEditModality(option.value)}
+                  style={getChipStyle(active)}
+                >
+                  <Text style={getChipTextStyle(active)}>{option.label}</Text>
                 </Pressable>
               );
             })}

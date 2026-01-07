@@ -2,6 +2,8 @@ type ClassRow = {
   id: string;
   name: string;
   ageBand: string;
+  modality?: string;
+  gender: string;
   daysPerWeek: number;
   goal: string;
   equipment: string;
@@ -82,6 +84,8 @@ export const db = {
         goal: String(params[4] ?? ""),
         equipment: String(params[5] ?? ""),
         level: Number(params[6] ?? 0),
+        gender: String(params[7] ?? "misto"),
+        modality: String(params[8] ?? "fitness"),
       };
       const exists = classes.some((item) => item.id === row.id);
       if (!exists) classes.push(row);

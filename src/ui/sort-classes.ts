@@ -1,5 +1,3 @@
-import type { ClassGroup } from "../core/models";
-
 type AgeRange = { start: number; end: number; label: string };
 
 const parseAgeRange = (value?: string): AgeRange => {
@@ -30,7 +28,9 @@ const parseAgeRange = (value?: string): AgeRange => {
   };
 };
 
-export const sortClassesByAgeBand = (items: ClassGroup[]) => {
+export const sortClassesByAgeBand = <T extends { ageBand?: string; name?: string }>(
+  items: T[]
+) => {
   return [...items].sort((a, b) => {
     const aRange = parseAgeRange(a.ageBand || a.name);
     const bRange = parseAgeRange(b.ageBand || b.name);

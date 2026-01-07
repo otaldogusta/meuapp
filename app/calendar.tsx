@@ -27,6 +27,7 @@ import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useSaveToast } from "../src/ui/save-toast";
+import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 
 const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
 const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
@@ -657,6 +658,7 @@ export default function CalendarScreen() {
                                   >
                                     {time + " - " + cls.name}
                                   </Text>
+                                  <ClassGenderBadge gender={cls.gender} size="sm" />
                                 </View>
                                 {subtitle ? (
                                   <Text style={{ color: colors.muted, marginTop: 6 }}>

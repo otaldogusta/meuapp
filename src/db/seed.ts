@@ -152,7 +152,9 @@ type ClassRow = {
   name: string;
   unit?: string;
   unit_id?: string | null;
+  modality?: string | null;
   ageband: string;
+  gender?: string | null;
   starttime?: string;
   endtime?: string | null;
   end_time?: string | null;
@@ -287,57 +289,103 @@ export async function seedIfEmpty() {
   const nowIso = new Date().toISOString();
   const classes: ClassRow[] = [
     {
-      id: "c1",
-      name: "Turma 8-9",
+      id: "c_re_f_8_11",
+      name: "Feminino (8-11)",
       unit: "Rede Esperanca",
-      ageband: "8-9",
+      modality: "voleibol",
+      ageband: "8-11",
+      gender: "feminino",
       starttime: "14:00",
       end_time: computeEndTime("14:00", 60),
       duration: 60,
       days: [2, 4],
-      daysperweek: 3,
-      goal: "Fundamentos",
-      equipment: "misto",
+      daysperweek: 2,
+      goal: "Fundamentos + jogo reduzido",
+      equipment: "quadra",
       level: 1,
       mv_level: "MV1",
       cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 12,
+      cycle_length_weeks: 4,
       created_at: nowIso,
     },
     {
-      id: "c2",
-      name: "Turma 10-12",
+      id: "c_re_m_8_11",
+      name: "Masculino (8-11)",
       unit: "Rede Esperanca",
-      ageband: "10-12",
-      starttime: "15:00",
-      end_time: computeEndTime("15:00", 60),
+      modality: "voleibol",
+      ageband: "8-11",
+      gender: "masculino",
+      starttime: "15:30",
+      end_time: computeEndTime("15:30", 60),
       duration: 60,
       days: [2, 4],
-      daysperweek: 3,
-      goal: "Forca Geral",
-      equipment: "misto",
+      daysperweek: 2,
+      goal: "Fundamentos + jogo reduzido",
+      equipment: "quadra",
+      level: 1,
+      mv_level: "MV1",
+      cycle_start_date: formatIsoDate(new Date()),
+      cycle_length_weeks: 4,
+      created_at: nowIso,
+    },
+    {
+      id: "c_rp_6_8",
+      name: "6-8 anos",
+      unit: "Rede Esportes Pinhais",
+      modality: "voleibol",
+      ageband: "6-8",
+      gender: "misto",
+      starttime: "09:00",
+      end_time: computeEndTime("09:00", 60),
+      duration: 60,
+      days: [6],
+      daysperweek: 1,
+      goal: "Coordenacao + bola + jogo",
+      equipment: "quadra",
+      level: 1,
+      mv_level: "MV1",
+      cycle_start_date: formatIsoDate(new Date()),
+      cycle_length_weeks: 4,
+      created_at: nowIso,
+    },
+    {
+      id: "c_rp_9_11",
+      name: "9-11 anos",
+      unit: "Rede Esportes Pinhais",
+      modality: "voleibol",
+      ageband: "9-11",
+      gender: "misto",
+      starttime: "10:00",
+      end_time: computeEndTime("10:00", 60),
+      duration: 60,
+      days: [6],
+      daysperweek: 1,
+      goal: "Fundamentos + continuidade",
+      equipment: "quadra",
+      level: 1,
+      mv_level: "MV1",
+      cycle_start_date: formatIsoDate(new Date()),
+      cycle_length_weeks: 4,
+      created_at: nowIso,
+    },
+    {
+      id: "c_rp_12_14",
+      name: "12-14 anos",
+      unit: "Rede Esportes Pinhais",
+      modality: "voleibol",
+      ageband: "12-14",
+      gender: "misto",
+      starttime: "11:00",
+      end_time: computeEndTime("11:00", 60),
+      duration: 60,
+      days: [6],
+      daysperweek: 1,
+      goal: "Fundamentos + jogo + ataque progressivo",
+      equipment: "quadra",
       level: 2,
       mv_level: "MV2",
       cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 12,
-      created_at: nowIso,
-    },
-    {
-      id: "c3",
-      name: "Turma 13-15",
-      unit: "Rede Esportes Pinhais",
-      ageband: "13-15",
-      starttime: "14:00",
-      end_time: computeEndTime("14:00", 60),
-      duration: 60,
-      days: [1, 3, 5],
-      daysperweek: 3,
-      goal: "Forca+Potencia",
-      equipment: "misto",
-      level: 2,
-      mv_level: "MV3",
-      cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 12,
+      cycle_length_weeks: 4,
       created_at: nowIso,
     },
   ];
@@ -475,7 +523,15 @@ export async function getClasses(): Promise<ClassGroup[]> {
       (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
       "Sem unidade",
     unitId: row.unit_id ?? undefined,
+    modality:
+      row.modality === "voleibol" || row.modality === "fitness"
+        ? row.modality
+        : undefined,
     ageBand: row.ageband,
+    gender:
+      row.gender === "masculino" || row.gender === "feminino"
+        ? row.gender
+        : "misto",
     startTime: row.starttime ?? "14:00",
     endTime:
       row.end_time ??
@@ -549,7 +605,15 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
       (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
       "Sem unidade",
     unitId: row.unit_id ?? undefined,
+    modality:
+      row.modality === "voleibol" || row.modality === "fitness"
+        ? row.modality
+        : undefined,
     ageBand: row.ageband,
+    gender:
+      row.gender === "masculino" || row.gender === "feminino"
+        ? row.gender
+        : "misto",
     startTime: row.starttime ?? "14:00",
     endTime:
       row.end_time ??
@@ -582,6 +646,8 @@ export async function updateClass(
     daysOfWeek: number[];
     goal: ClassGroup["goal"];
     ageBand: ClassGroup["ageBand"];
+    gender: ClassGroup["gender"];
+    modality?: ClassGroup["modality"];
     startTime: string;
     durationMinutes: number;
     unitId?: string;
@@ -596,10 +662,12 @@ export async function updateClass(
     days: data.daysOfWeek,
     goal: data.goal,
     ageband: data.ageBand,
+    gender: data.gender,
     starttime: data.startTime,
     end_time: computeEndTime(data.startTime, data.durationMinutes),
     duration: data.durationMinutes,
   };
+  if (data.modality) payload.modality = data.modality;
 
   const resolvedUnit =
     data.unitId ??
@@ -621,6 +689,8 @@ export async function saveClass(data: {
   ageBand: ClassGroup["ageBand"];
   daysOfWeek: number[];
   goal: ClassGroup["goal"];
+  gender: ClassGroup["gender"];
+  modality?: ClassGroup["modality"];
   startTime: string;
   durationMinutes: number;
   unitId?: string;
@@ -638,7 +708,9 @@ export async function saveClass(data: {
       name: data.name,
       unit: data.unit,
       unit_id: resolvedUnit,
+      modality: data.modality ?? "fitness",
       ageband: data.ageBand,
+      gender: data.gender,
       starttime: data.startTime,
       end_time: computeEndTime(data.startTime, data.durationMinutes),
       duration: data.durationMinutes,
@@ -666,7 +738,9 @@ export async function duplicateClass(base: ClassGroup) {
       name: base.name + " (copia)",
       unit: base.unit,
       unit_id: resolvedUnit,
+      modality: base.modality ?? "fitness",
       ageband: base.ageBand,
+      gender: base.gender,
       starttime: base.startTime,
       end_time: computeEndTime(base.startTime, base.durationMinutes),
       duration: base.durationMinutes,

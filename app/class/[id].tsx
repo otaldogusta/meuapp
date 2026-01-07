@@ -33,6 +33,7 @@ import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 
 export default function ClassDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,6 +44,7 @@ export default function ClassDetails() {
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
+  const [gender, setGender] = useState<ClassGroup["gender"]>("misto");
   const [startTime, setStartTime] = useState("14:00");
   const [duration, setDuration] = useState("60");
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
@@ -128,6 +130,7 @@ export default function ClassDetails() {
   const unitLabel = clsUnit || "Sem unidade";
   const className = cls?.name || "Turma";
   const classAgeBand = cls?.ageBand || ageBand;
+  const classGender = cls?.gender || gender;
   const classDays = cls?.daysOfWeek ?? [];
   const classStartTime = cls?.startTime || "-";
   const classDuration = cls?.durationMinutes ?? 60;
@@ -181,6 +184,7 @@ export default function ClassDetails() {
         setName(data?.name ?? "");
         setUnit(data?.unit ?? "");
         setAgeBand(data?.ageBand ?? "8-9");
+        setGender(data?.gender ?? "misto");
         setStartTime(data?.startTime ?? "14:00");
         setDuration(String(data?.durationMinutes ?? 60));
         setDaysOfWeek(data?.daysOfWeek ?? []);
@@ -233,6 +237,7 @@ export default function ClassDetails() {
         daysOfWeek,
         goal,
         ageBand: ageBand.trim() || cls.ageBand,
+        gender,
         startTime: timeValue,
         durationMinutes: durationValue,
       });
@@ -303,6 +308,7 @@ export default function ClassDetails() {
                 {"Faixa " + classAgeBand}
               </Text>
             </View>
+            <ClassGenderBadge gender={classGender} size="md" />
           </View>
         </View>
 
@@ -359,6 +365,10 @@ export default function ClassDetails() {
               <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12 }}>
                 {"Faixa: " + classAgeBand}
               </Text>
+              <View style={{ flexDirection: "row", gap: 6, marginTop: 6, alignItems: "center" }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Genero:</Text>
+                <ClassGenderBadge gender={classGender} />
+              </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
                 <View style={{ minWidth: "45%" }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Dias</Text>

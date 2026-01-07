@@ -19,6 +19,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   getClasses,
@@ -44,12 +45,26 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 
 export default function StudentsScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
+  const selectFieldStyle = {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    gap: 8,
+  };
   const editModalCardStyle = useModalCardStyle({ maxHeight: "100%" });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -72,6 +87,8 @@ export default function StudentsScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showUnitPicker, setShowUnitPicker] = useState(false);
+  const [showClassPicker, setShowClassPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [studentFormError, setStudentFormError] = useState("");
@@ -91,6 +108,26 @@ export default function StudentsScreen() {
     "students_birthday_notice_v1",
     ""
   );
+  const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const [unitTriggerLayout, setUnitTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [classTriggerLayout, setClassTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const containerRef = useRef<View>(null);
+  const unitTriggerRef = useRef<View>(null);
+  const classTriggerRef = useRef<View>(null);
+  const { animatedStyle: unitPickerAnimStyle, isVisible: showUnitPickerContent } =
+    useCollapsibleAnimation(showUnitPicker);
+  const { animatedStyle: classPickerAnimStyle, isVisible: showClassPickerContent } =
+    useCollapsibleAnimation(showClassPicker);
 
   useEffect(() => {
     let alive = true;
@@ -117,6 +154,52 @@ export default function StudentsScreen() {
     (value?: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
     []
   );
+
+  const closeAllPickers = useCallback(() => {
+    setShowUnitPicker(false);
+    setShowClassPicker(false);
+  }, []);
+
+  const toggleFormPicker = useCallback(
+    (target: "unit" | "class") => {
+      setShowUnitPicker((prev) => (target === "unit" ? !prev : false));
+      setShowClassPicker((prev) => (target === "class" ? !prev : false));
+    },
+    []
+  );
+
+  const handleSelectUnit = useCallback((value: string) => {
+    setUnit(value);
+    setShowUnitPicker(false);
+  }, []);
+
+  const handleSelectClass = useCallback((value: ClassGroup) => {
+    setClassId(value.id);
+    setUnit(unitLabel(value.unit));
+    setAgeBand(value.ageBand);
+    setCustomAgeBand("");
+    setShowClassPicker(false);
+  }, [unitLabel]);
+
+  const syncPickerLayouts = useCallback(() => {
+    const hasPickerOpen = showUnitPicker || showClassPicker;
+    if (!hasPickerOpen) return;
+    requestAnimationFrame(() => {
+      if (showUnitPicker) {
+        unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setUnitTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showClassPicker) {
+        classTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setClassTriggerLayout({ x, y, width, height });
+        });
+      }
+      containerRef.current?.measureInWindow((x, y) => {
+        setContainerWindow({ x, y });
+      });
+    });
+  }, [showClassPicker, showUnitPicker]);
 
   const unitOptions = useMemo(() => {
     const set = new Set<string>();
@@ -151,36 +234,29 @@ export default function StudentsScreen() {
   }, [classes]);
 
   useEffect(() => {
-    if (!classes.length) return;
-    if (!showForm) return;
-    if (!unit) return;
-    if (!ageBand) return;
-  }, [ageBand, ageBandOptions, classes.length, unit, unitOptions]);
+    syncPickerLayouts();
+  }, [showUnitPicker, showClassPicker, syncPickerLayouts]);
+
+  useEffect(() => {
+    if (!showForm) closeAllPickers();
+  }, [closeAllPickers, showForm]);
 
   useEffect(() => {
     if (!classes.length) return;
-    if (!unit || !ageBand) {
+    if (!unit) {
       setClassId("");
       return;
     }
     const matching = classes
-      .filter(
-        (item) => unitLabel(item.unit) === unit && item.ageBand === ageBand
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
-    if (matching.length) {
-      setClassId(matching[0].id);
-      return;
-    }
-    const byUnit = classes
       .filter((item) => unitLabel(item.unit) === unit)
       .sort((a, b) => a.name.localeCompare(b.name));
-    if (byUnit.length) {
-      setClassId(byUnit[0].id);
+    if (!matching.length) {
+      setClassId("");
       return;
     }
-    setClassId(classes[0].id);
-  }, [ageBand, classes, unit]);
+    if (matching.some((item) => item.id === classId)) return;
+    setClassId(matching[0].id);
+  }, [classes, unit, unitLabel]);
 
   useEffect(() => {
     if (!birthDate) {
@@ -193,8 +269,8 @@ export default function StudentsScreen() {
 
   const onSave = async () => {
     const wasEditing = !!editingId;
-    if (!unit || !ageBand || !classId) {
-      setStudentFormError("Selecione a unidade e a faixa etaria.");
+    if (!unit || !classId) {
+      setStudentFormError("Selecione a unidade e a turma.");
       return false;
     }
     if (!classId || !name.trim()) return false;
@@ -231,8 +307,7 @@ export default function StudentsScreen() {
 
   const isFormDirty =
     unit.trim() ||
-    ageBand.trim() ||
-    customAgeBand.trim() ||
+    classId.trim() ||
     name.trim() ||
     birthDate.trim() ||
     phone.trim() ||
@@ -240,7 +315,6 @@ export default function StudentsScreen() {
 
   const canSaveStudent =
     !!unit &&
-    !!ageBand &&
     !!classId &&
     !!name.trim() &&
     !!birthDate.trim() &&
@@ -270,6 +344,7 @@ export default function StudentsScreen() {
   ]);
 
   const resetForm = () => {
+    closeAllPickers();
     setShowForm(false);
     setEditingId(null);
     setEditingCreatedAt(null);
@@ -286,6 +361,7 @@ export default function StudentsScreen() {
   };
 
   const resetCreateForm = () => {
+    closeAllPickers();
     setUnit("");
     setAgeBand("");
     setClassId("");
@@ -476,12 +552,6 @@ export default function StudentsScreen() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
 
-  const formatAgeBand = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 4);
-    if (digits.length <= 2) return digits;
-    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
-  };
-
   const formatName = (value: string) => {
     const particles = new Set([
       "da",
@@ -501,6 +571,129 @@ export default function StudentsScreen() {
       })
       .join(" ");
     return hasTrailingSpace ? formatted + " " : formatted;
+  };
+
+  const parseTime = (value: string) => {
+    const match = value.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+    return { hour, minute };
+  };
+
+  const formatTime = (hour: number, minute: number) => {
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  };
+
+  const formatTimeRange = (startTime: string, durationMinutes: number) => {
+    const parsed = parseTime(startTime);
+    if (!parsed) return "";
+    const total = parsed.hour * 60 + parsed.minute + durationMinutes;
+    const endHour = Math.floor(total / 60) % 24;
+    const endMinute = total % 60;
+    return `${formatTime(parsed.hour, parsed.minute)} - ${formatTime(
+      endHour,
+      endMinute
+    )}`;
+  };
+
+  const classOptions = useMemo(() => {
+    if (!classes.length) return [];
+    const byTimeThenName = (a: ClassGroup, b: ClassGroup) => {
+      const timeOrder = (a.startTime || "").localeCompare(b.startTime || "");
+      if (timeOrder !== 0) return timeOrder;
+      return a.name.localeCompare(b.name);
+    };
+    if (unit) {
+      return classes
+        .filter((item) => unitLabel(item.unit) === unit)
+        .sort(byTimeThenName);
+    }
+    return classes.slice().sort(byTimeThenName);
+  }, [classes, unit, unitLabel]);
+
+  const getClassLabel = (cls: ClassGroup) => {
+    const start = cls.startTime || "";
+    const duration = cls.durationMinutes || 60;
+    const timeRange = start ? formatTimeRange(start, duration) : "";
+    if (timeRange) return `${timeRange} - ${cls.name}`;
+    return cls.name;
+  };
+
+  const renderClassPicker = () => {
+    if (!unit) return null;
+    if (!classOptions.length) {
+      return (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.muted }}>Turma</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Nenhuma turma disponivel para essa unidade.
+          </Text>
+        </View>
+      );
+    }
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: colors.muted }}>Turma</Text>
+        <View
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+        >
+          {classOptions.map((item, index) => {
+            const active = item.id === classId;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => setClassId(active ? "" : item.id)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  margin: index === 0 ? 6 : 2,
+                  backgroundColor: active ? colors.primaryBg : "transparent",
+                }}
+              >
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  <Text
+                    style={{
+                      color: active ? colors.primaryText : colors.text,
+                      fontSize: 12,
+                      fontWeight: active ? "700" : "500",
+                    }}
+                  >
+                    {getClassLabel(item)}
+                  </Text>
+                  <ClassGenderBadge gender={item.gender} />
+                </View>
+                <Text
+                  style={{
+                    color: active ? colors.primaryText : colors.muted,
+                    fontSize: 11,
+                    marginTop: 2,
+                  }}
+                >
+                  {unitLabel(item.unit)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {selectedClassName ? (
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Turma selecionada: {selectedClassName}
+          </Text>
+        ) : (
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Selecione uma turma.
+          </Text>
+        )}
+      </View>
+    );
   };
 
   const today = useMemo(() => new Date(), []);
@@ -592,6 +785,98 @@ export default function StudentsScreen() {
     [colors]
   );
 
+  const SelectOption = useMemo(
+    () =>
+      memo(function SelectOptionItem({
+        label,
+        value,
+        active,
+        onSelect,
+        isFirst,
+      }: {
+        label: string;
+        value: string;
+        active: boolean;
+        onSelect: (value: string) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(value)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? colors.primaryBg : "transparent",
+            }}
+          >
+            <Text
+              style={{
+                color: active ? colors.primaryText : colors.text,
+                fontSize: 12,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
+  const ClassOption = useMemo(
+    () =>
+      memo(function ClassOptionItem({
+        item,
+        active,
+        onSelect,
+        isFirst,
+      }: {
+        item: ClassGroup;
+        active: boolean;
+        onSelect: (value: ClassGroup) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(item)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? colors.primaryBg : "transparent",
+            }}
+          >
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              <Text
+                style={{
+                  color: active ? colors.primaryText : colors.text,
+                  fontSize: 12,
+                  fontWeight: active ? "700" : "500",
+                }}
+              >
+                {getClassLabel(item)}
+              </Text>
+              <ClassGenderBadge gender={item.gender} />
+            </View>
+            <Text
+              style={{
+                color: active ? colors.primaryText : colors.muted,
+                fontSize: 11,
+                marginTop: 2,
+              }}
+            >
+              {unitLabel(item.unit)}
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors, getClassLabel, unitLabel]
+  );
+
   const renderStudentItem = useCallback(
     ({ item }: { item: Student }) => (
       <StudentRow
@@ -614,9 +899,12 @@ export default function StudentsScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+      <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 24, gap: 16 }}
         keyboardShouldPersistTaps="handled"
+        onScroll={syncPickerLayouts}
+        scrollEventThrottle={16}
       >
         <ScreenHeader title="Alunos" subtitle="Lista de chamada por turma" />
 
@@ -675,67 +963,11 @@ export default function StudentsScreen() {
           </Pressable>
           {showFormContent ? (
             <Animated.View style={[formAnimStyle, { gap: 12, marginTop: 12 }]}>
-              <Text style={{ color: colors.muted }}>Unidade</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {unitOptions.map((item) => {
-                  const active = item === unit;
-                  return (
-                    <Pressable
-                      key={item}
-                      onPress={() => setUnit(active ? "" : item)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                        {item}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={{ color: colors.muted }}>Faixa etaria</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {ageBandOptions.map((item) => {
-                  const active = item === ageBand;
-                  return (
-                    <Pressable
-                      key={item}
-                      onPress={() => {
-                        if (active) {
-                          setAgeBand("");
-                          return;
-                        }
-                        setAgeBand(item);
-                        setCustomAgeBand("");
-                      }}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                        {item}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
               <TextInput
-                placeholder="Outra faixa (ex: 19-21)"
-                value={customAgeBand}
-                onChangeText={(value) => {
-                  const next = formatAgeBand(value);
-                  setCustomAgeBand(next);
-                  if (next.includes("-")) {
-                    setAgeBand(next.trim());
-                  }
-                }}
+                placeholder="Nome do aluno"
+                value={name}
+                onChangeText={setName}
+                onBlur={() => setName(formatName(name))}
                 placeholderTextColor={colors.placeholder}
                 style={{
                   borderWidth: 1,
@@ -746,56 +978,83 @@ export default function StudentsScreen() {
                   color: colors.inputText,
                 }}
               />
-              {selectedClassName ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Turma selecionada: {selectedClassName}
-                </Text>
-              ) : null}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Unidade</Text>
+                  <View ref={unitTriggerRef}>
+                    <Pressable
+                      onPress={() => toggleFormPicker("unit")}
+                      style={selectFieldStyle}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {unit || "Selecione a unidade"}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={colors.muted}
+                        style={{ transform: [{ rotate: showUnitPicker ? "180deg" : "0deg" }] }}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Turma</Text>
+                  <View ref={classTriggerRef}>
+                    <Pressable
+                      onPress={() => toggleFormPicker("class")}
+                      style={selectFieldStyle}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {selectedClassName || "Selecione a turma"}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={colors.muted}
+                        style={{ transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }] }}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
               {studentFormError ? (
                 <Text style={{ color: colors.dangerText, fontSize: 12 }}>
                   {studentFormError}
                 </Text>
               ) : null}
-
-          <TextInput
-            placeholder="Nome do aluno"
-            value={name}
-            onChangeText={setName}
-            onBlur={() => setName(formatName(name))}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <DateInput
-            value={birthDate}
-            onChange={setBirthDate}
-            placeholder="Data de nascimento"
-            onOpenCalendar={() => setShowCalendar(true)}
-          />
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {ageNumber !== null ? `Idade: ${ageNumber} anos` : "Idade calculada automaticamente"}
-          </Text>
-          <TextInput
-            placeholder="Telefone"
-            value={phone}
-            onChangeText={(value) => setPhone(formatPhone(value))}
-            keyboardType="phone-pad"
-            placeholderTextColor={colors.placeholder}
-            style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <DateInput
+                    value={birthDate}
+                    onChange={setBirthDate}
+                    placeholder="Data de nascimento"
+                    onOpenCalendar={() => setShowCalendar(true)}
+                  />
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {ageNumber !== null
+                      ? `Idade: ${ageNumber} anos`
+                      : "Idade calculada automaticamente"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <TextInput
+                    placeholder="Telefone"
+                    value={phone}
+                    onChangeText={(value) => setPhone(formatPhone(value))}
+                    keyboardType="phone-pad"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
 
               <Button
                 label={editingId ? "Salvar alteracoes" : "Adicionar aluno"}
@@ -866,6 +1125,72 @@ export default function StudentsScreen() {
           />
         </View>
       </ScrollView>
+
+        <AnchoredDropdown
+          visible={showUnitPickerContent}
+          layout={unitTriggerLayout}
+          container={containerWindow}
+          animationStyle={unitPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {unitOptions.length ? (
+            unitOptions.map((item, index) => (
+              <SelectOption
+                key={item}
+                label={item}
+                value={item}
+                active={item === unit}
+                onSelect={handleSelectUnit}
+                isFirst={index === 0}
+              />
+            ))
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+              Nenhuma unidade cadastrada.
+            </Text>
+          )}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showClassPickerContent}
+          layout={classTriggerLayout}
+          container={containerWindow}
+          animationStyle={classPickerAnimStyle}
+          zIndex={320}
+          maxHeight={240}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {classOptions.length ? (
+            classOptions.map((item, index) => (
+              <ClassOption
+                key={item.id}
+                item={item}
+                active={item.id === classId}
+                onSelect={handleSelectClass}
+                isFirst={index === 0}
+              />
+            ))
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+              Nenhuma turma encontrada.
+            </Text>
+          )}
+        </AnchoredDropdown>
+      </View>
       {saveNotice ? (
         <Animated.View
           style={{
@@ -942,6 +1267,21 @@ export default function StudentsScreen() {
           nestedScrollEnabled
           showsVerticalScrollIndicator
         >
+              <TextInput
+                placeholder="Nome do aluno"
+                value={name}
+                onChangeText={setName}
+                onBlur={() => setName(formatName(name))}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
               <Text style={{ color: colors.muted }}>Unidade</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {unitOptions.map((item) => {
@@ -964,106 +1304,44 @@ export default function StudentsScreen() {
                   );
                 })}
               </View>
-              <Text style={{ color: colors.muted }}>Faixa etaria</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {ageBandOptions.map((item) => {
-                  const active = item === ageBand;
-                  return (
-                    <Pressable
-                      key={item}
-                      onPress={() => {
-                        if (active) {
-                          setAgeBand("");
-                          return;
-                        }
-                        setAgeBand(item);
-                        setCustomAgeBand("");
-                      }}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                        {item}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <TextInput
-                placeholder="Outra faixa (ex: 19-21)"
-                value={customAgeBand}
-                onChangeText={(value) => {
-                  const next = formatAgeBand(value);
-                  setCustomAgeBand(next);
-                  if (next.includes("-")) {
-                    setAgeBand(next.trim());
-                  }
-                }}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              {selectedClassName ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Turma selecionada: {selectedClassName}
-                </Text>
-              ) : null}
+              {renderClassPicker()}
               {studentFormError ? (
                 <Text style={{ color: colors.dangerText, fontSize: 12 }}>
                   {studentFormError}
                 </Text>
               ) : null}
-              <TextInput
-                placeholder="Nome do aluno"
-                value={name}
-                onChangeText={setName}
-                onBlur={() => setName(formatName(name))}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              <DateInput
-                value={birthDate}
-                onChange={setBirthDate}
-                placeholder="Data de nascimento"
-                onOpenCalendar={() => setShowCalendar(true)}
-              />
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {ageNumber !== null
-                  ? `Idade: ${ageNumber} anos`
-                  : "Idade calculada automaticamente"}
-              </Text>
-              <TextInput
-                placeholder="Telefone"
-                value={phone}
-                onChangeText={(value) => setPhone(formatPhone(value))}
-                keyboardType="phone-pad"
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <DateInput
+                    value={birthDate}
+                    onChange={setBirthDate}
+                    placeholder="Data de nascimento"
+                    onOpenCalendar={() => setShowCalendar(true)}
+                  />
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {ageNumber !== null
+                      ? `Idade: ${ageNumber} anos`
+                      : "Idade calculada automaticamente"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <TextInput
+                    placeholder="Telefone"
+                    value={phone}
+                    onChangeText={(value) => setPhone(formatPhone(value))}
+                    keyboardType="phone-pad"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
                   onPress={async () => {

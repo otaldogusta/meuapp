@@ -14,6 +14,7 @@ import {
 } from "../../src/db/seed";
 import type { AttendanceRecord, ClassGroup, Student } from "../../src/core/models";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -518,9 +519,12 @@ export default function ReportsScreen() {
                 }}
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ fontWeight: "700", color: colors.text }}>
-                    {row.cls.name}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ fontWeight: "700", color: colors.text }}>
+                      {row.cls.name}
+                    </Text>
+                    <ClassGenderBadge gender={row.cls.gender} size="sm" />
+                  </View>
                   <Text style={{ color: colors.muted }}>{row.percent}%</Text>
                 </View>
                 <View
@@ -590,9 +594,14 @@ export default function ReportsScreen() {
                   backgroundColor: classId === cls.id ? colors.primaryBg : colors.secondaryBg,
                 }}
               >
-                <Text style={{ color: classId === cls.id ? colors.primaryText : colors.text }}>
-                  {cls.name}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text
+                    style={{ color: classId === cls.id ? colors.primaryText : colors.text }}
+                  >
+                    {cls.name}
+                  </Text>
+                  <ClassGenderBadge gender={cls.gender} size="sm" />
+                </View>
               </Pressable>
             ))}
           </View>

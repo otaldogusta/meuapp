@@ -1,13 +1,17 @@
 export type AgeBand = string;
 export type Goal = string;
 export type Equipment = "quadra" | "funcional" | "academia" | "misto";
+export type ClassGender = "masculino" | "feminino" | "misto";
+export type Modality = "voleibol" | "fitness";
 
 export type ClassGroup = {
   id: string;
   name: string;
   unit: string;
   unitId?: string;
+  modality?: Modality;
   ageBand: AgeBand;
+  gender: ClassGender;
   startTime: string;
   endTime?: string;
   durationMinutes: number;

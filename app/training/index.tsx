@@ -63,6 +63,7 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 
 const toLines = (value: string) =>
   value
@@ -1868,50 +1869,56 @@ export default function TrainingList() {
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {sortedClasses.map((item) => {
                 const active = item.id === classId;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() =>
-                      setClassId((prev) => (prev === item.id ? "" : item.id))
-                    }
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                      {item.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                    return (
+                      <Pressable
+                        key={item.id}
+                        onPress={() =>
+                          setClassId((prev) => (prev === item.id ? "" : item.id))
+                        }
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 10,
+                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                        }}
+                      >
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                        <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                          {item.name}
+                        </Text>
+                        <ClassGenderBadge gender={item.gender} />
+                      </View>
+                      </Pressable>
+                    );
+                  })}
             </View>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 {sortedClasses.slice(0, 5).map((item) => {
                   const active = item.id === classId;
-                  return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() =>
-                      setClassId((prev) => (prev === item.id ? "" : item.id))
-                    }
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                        {item.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                    return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() =>
+                        setClassId((prev) => (prev === item.id ? "" : item.id))
+                      }
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                          borderRadius: 10,
+                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                          <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                            {item.name}
+                          </Text>
+                          <ClassGenderBadge gender={item.gender} />
+                        </View>
+                      </Pressable>
+                    );
+                  })}
               </View>
             </ScrollView>
           )}
@@ -2830,9 +2837,12 @@ export default function TrainingList() {
                       backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
                     }}
                   >
-                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                      {item.name}
-                    </Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
+                        {item.name}
+                      </Text>
+                      <ClassGenderBadge gender={item.gender} />
+                    </View>
                   </Pressable>
                 );
               })}

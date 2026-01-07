@@ -1,6 +1,6 @@
 import { generateSession } from "../sessionGenerator";
 
-const mk = (ageBand: any) => ({
+const mk = (ageBand: any, goal = "Fundamentos") => ({
   id: "t",
   name: "Turma",
   unit: "Rede Esperanca",
@@ -8,34 +8,34 @@ const mk = (ageBand: any) => ({
   startTime: "14:00",
   daysOfWeek: [2, 4],
   daysPerWeek: 3,
-  goal: "Fundamentos",
+  goal,
   equipment: "misto",
   level: 1,
 });
 
-test("gera sessão para 8-9", () => {
+test("gera sessao para 8-9 com conteudo de voleibol", () => {
   const s = generateSession(mk("8-9"));
   expect(s.warmup.length).toBeGreaterThan(0);
-  expect(s.main.join(" ")).toContain("Circuito");
+  expect(s.main.join(" ")).toContain("Tecnica - Toque");
   expect(s.cooldown.join(" ")).toContain("RPE");
 });
 
-test("gera sessão para 10-12", () => {
+test("gera sessao para 10-12 com conteudo de voleibol", () => {
   const s = generateSession(mk("10-12"));
-  expect(s.main.join(" ")).toContain("Força técnica");
+  expect(s.main.join(" ")).toContain("Tecnica - Saque por cima");
 });
 
-test("gera sessão para 13-15", () => {
+test("gera sessao para 13-15 com conteudo de voleibol", () => {
   const s = generateSession(mk("13-15"));
-  expect(s.main.join(" ")).toContain("Força");
+  expect(s.main.join(" ")).toContain("Tecnica - Saque por cima");
 });
 
-test("sessão sempre tem cooldown com 3 itens", () => {
+test("sessao sempre tem cooldown com 3 itens", () => {
   const s = generateSession(mk("8-9"));
   expect(s.cooldown).toHaveLength(3);
 });
 
-test("session.block é string", () => {
+test("session.block e string", () => {
   const s = generateSession(mk("8-9"));
   expect(typeof s.block).toBe("string");
 });
@@ -48,4 +48,9 @@ test("main tem pelo menos 2 itens", () => {
 test("warmup tem 3 itens", () => {
   const s = generateSession(mk("8-9"));
   expect(s.warmup).toHaveLength(3);
+});
+
+test("usa fallback fitness quando objetivo nao e voleibol", () => {
+  const s = generateSession(mk("8-9", "Forca Geral"));
+  expect(s.main.join(" ")).toContain("Circuito");
 });
