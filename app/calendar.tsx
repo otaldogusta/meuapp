@@ -10,7 +10,7 @@ import { Animated,
   View
 } from "react-native";
 import { Pressable } from "../src/ui/Pressable";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -28,7 +28,6 @@ import { ModalSheet } from "../src/ui/ModalSheet";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useSaveToast } from "../src/ui/save-toast";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
-import { Badge } from "../src/ui/Badge";
 
 const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
 const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
@@ -115,12 +114,19 @@ export default function CalendarScreen() {
     () => startOfWeek(targetDate ? new Date(targetDate) : new Date()),
     [targetDate]
   );
-  const weekOffset = activeWeekTab === "prev" ? -1 : activeWeekTab === "next" ? 1 : 0;
-  const weekStart = useMemo(() => {
-    const copy = new Date(baseWeekStart);
-    copy.setDate(copy.getDate() + weekOffset * 7);
-    return copy;
-  }, [baseWeekStart, weekOffset]);
+  const getWeekStartForTab = useCallback(
+    (tabId: "prev" | "current" | "next") => {
+      const copy = new Date(baseWeekStart);
+      if (tabId === "prev") copy.setDate(copy.getDate() - 7);
+      if (tabId === "next") copy.setDate(copy.getDate() + 7);
+      return copy;
+    },
+    [baseWeekStart]
+  );
+  const weekStart = useMemo(
+    () => getWeekStartForTab(activeWeekTab),
+    [activeWeekTab, getWeekStartForTab]
+  );
   const weekRangeLabel = useMemo(() => {
     const end = new Date(weekStart);
     end.setDate(end.getDate() + 6);
@@ -220,23 +226,43 @@ export default function CalendarScreen() {
     applyTargetHandled.current = true;
   }, [openApply, targetClassId, targetDate, classes, unitLabel]);
 
+  const fetchSessionLogsFor = useCallback(async (start: Date) => {
+    const startDate = new Date(start);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    const logs = await getSessionLogsByRange(
+      startDate.toISOString(),
+      end.toISOString()
+    );
+    return logs;
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
-      const start = new Date(weekStart);
-      const end = new Date(weekStart);
-      end.setDate(end.getDate() + 7);
-      const logs = await getSessionLogsByRange(
-        start.toISOString(),
-        end.toISOString()
-      );
+      const logs = await fetchSessionLogsFor(weekStart);
       if (!alive) return;
       setSessionLogs(logs);
     })();
     return () => {
       alive = false;
     };
-  }, [weekStart]);
+  }, [weekStart, fetchSessionLogsFor]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        if (!active) return;
+        const logs = await fetchSessionLogsFor(weekStart);
+        if (!active) return;
+        setSessionLogs(logs);
+      })();
+      return () => {
+        active = false;
+      };
+    }, [fetchSessionLogsFor, weekStart])
+  );
 
   const plansByClassId = useMemo(() => {
     const map: Record<string, TrainingPlan[]> = {};
@@ -302,36 +328,6 @@ export default function CalendarScreen() {
       ? classes
       : classes.filter((cls) => unitLabel(cls.unit) === unitFilter);
   }, [classes, unitFilter, unitLabel]);
-  const getWeekSessionsCount = useCallback(
-    (start: Date) => {
-      if (!filteredClasses.length) return 0;
-      return filteredClasses.reduce((sum, cls) => {
-        const startDate = cls.cycleStartDate
-          ? new Date(cls.cycleStartDate + "T00:00:00")
-          : null;
-        const count = cls.daysOfWeek.reduce((acc, day) => {
-          const offset = day === 0 ? 6 : day - 1;
-          const date = new Date(start);
-          date.setDate(start.getDate() + offset);
-          if (startDate && date.getTime() < startDate.getTime()) return acc;
-          return acc + 1;
-        }, 0);
-        return sum + count;
-      }, 0);
-    },
-    [filteredClasses]
-  );
-  const weekCounts = useMemo(() => {
-    const prev = new Date(baseWeekStart);
-    prev.setDate(prev.getDate() - 7);
-    const next = new Date(baseWeekStart);
-    next.setDate(next.getDate() + 7);
-    return {
-      prev: getWeekSessionsCount(prev),
-      current: getWeekSessionsCount(baseWeekStart),
-      next: getWeekSessionsCount(next),
-    };
-  }, [baseWeekStart, getWeekSessionsCount]);
 
   const scheduleDays = useMemo(() => {
     const unique = new Set<number>();
@@ -465,15 +461,21 @@ export default function CalendarScreen() {
             }}
           >
             {[
-              { id: "prev", label: "Semana anterior", count: weekCounts.prev },
-              { id: "current", label: "Semana atual", count: weekCounts.current },
-              { id: "next", label: "Proxima semana", count: weekCounts.next },
+              { id: "prev", label: "Semana anterior" },
+              { id: "current", label: "Semana atual" },
+              { id: "next", label: "Proxima semana" },
             ].map((tab) => {
               const selected = activeWeekTab === tab.id;
               return (
                 <Pressable
                   key={tab.id}
-                  onPress={() => setActiveWeekTab(tab.id as "prev" | "current" | "next")}
+                  onPress={() => {
+                    const nextTab = tab.id as "prev" | "current" | "next";
+                    setActiveWeekTab(nextTab);
+                    void fetchSessionLogsFor(getWeekStartForTab(nextTab)).then((logs) => {
+                      setSessionLogs(logs);
+                    });
+                  }}
                   style={{
                     flex: 1,
                     paddingVertical: 8,
@@ -484,27 +486,15 @@ export default function CalendarScreen() {
                     alignItems: "center",
                   }}
                 >
-                  <View style={{ position: "relative" }}>
-                    <Text
-                      style={{
-                        color: selected ? colors.primaryText : colors.muted,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      {tab.label}
-                    </Text>
-                    {tab.count > 0 ? (
-                      <Badge
-                        label={tab.count}
-                        style={{
-                          position: "absolute",
-                          top: -8,
-                          right: -18,
-                        }}
-                      />
-                    ) : null}
-                  </View>
+                  <Text
+                    style={{
+                      color: selected ? colors.primaryText : colors.muted,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -589,10 +579,6 @@ export default function CalendarScreen() {
             const filtered = filteredClasses.filter((cls) =>
               cls.daysOfWeek.includes(day)
             );
-            const pendingCount = filtered.filter((cls) => {
-              if (date.getTime() > todayStart.getTime()) return false;
-              return !sessionLogMap.has(`${cls.id}-${dayKey}`);
-            }).length;
             const groupedByUnit = filtered.reduce<Record<string, ClassGroup[]>>(
               (acc, cls) => {
                 const key = unitLabel(cls.unit);
@@ -973,14 +959,10 @@ export default function CalendarScreen() {
                                         backgroundColor: colors.card,
                                         borderWidth: 1,
                                         borderColor: colors.border,
-                                        flexDirection: "row",
-                                        justifyContent: "center",
-                                        gap: 6,
                                       },
                                       pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
                                     ]}
                                   >
-                                    <Badge />
                                     <Text
                                       style={{
                                         color: colors.secondaryText,
@@ -1062,15 +1044,7 @@ export default function CalendarScreen() {
                         {formatDate(date)}
                       </Text>
                     </View>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{countLabel}</Text>
-                      {pendingCount > 0 ? (
-                        <Badge
-                          label={pendingCount}
-                          style={{ alignSelf: "center" }}
-                        />
-                      ) : null}
-                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{countLabel}</Text>
                   </View>
                 </View>
                 <MaterialCommunityIcons
