@@ -1,11 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
-import { getTrainingPlans, saveSessionLog } from "../../../src/db/seed";
+import {
+  getAttendanceByDate,
+  getStudentsByClass,
+  getTrainingPlans,
+  saveSessionLog,
+} from "../../../src/db/seed";
 import { Button } from "../../../src/ui/Button";
+import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 
 export default function LogScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
@@ -14,12 +23,34 @@ export default function LogScreen() {
 
   const [PSE, setPSE] = useState<number>(7);
   const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
-  const [attendance, setAttendance] = useState<number>(100);
   const [activity, setActivity] = useState("");
   const [autoActivity, setAutoActivity] = useState("");
   const [conclusion, setConclusion] = useState("");
   const [participantsCount, setParticipantsCount] = useState("");
   const [photos, setPhotos] = useState("");
+  const [attendancePercent, setAttendancePercent] = useState<number | null>(null);
+  const [showPsePicker, setShowPsePicker] = useState(false);
+  const [showTechniquePicker, setShowTechniquePicker] = useState(false);
+  const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const [pseTriggerLayout, setPseTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [techniqueTriggerLayout, setTechniqueTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const containerRef = useRef<View>(null);
+  const pseTriggerRef = useRef<View>(null);
+  const techniqueTriggerRef = useRef<View>(null);
+  const { animatedStyle: psePickerAnimStyle, isVisible: showPsePickerContent } =
+    useCollapsibleAnimation(showPsePicker, { translateY: -6 });
+  const { animatedStyle: techniquePickerAnimStyle, isVisible: showTechniquePickerContent } =
+    useCollapsibleAnimation(showTechniquePicker, { translateY: -6 });
 
   const sessionDate =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
@@ -31,10 +62,67 @@ export default function LogScreen() {
     return day === 0 ? 7 : day;
   }, [sessionDate]);
 
+  const togglePicker = useCallback((target: "pse" | "technique") => {
+    setShowPsePicker((prev) => (target === "pse" ? !prev : false));
+    setShowTechniquePicker((prev) => (target === "technique" ? !prev : false));
+  }, []);
+
+  const closePickers = useCallback(() => {
+    setShowPsePicker(false);
+    setShowTechniquePicker(false);
+  }, []);
+
+  const handleSelectPse = useCallback((value: number) => {
+    setPSE(value);
+    setShowPsePicker(false);
+  }, []);
+
+  const handleSelectTechnique = useCallback((value: "boa" | "ok" | "ruim") => {
+    setTechnique(value);
+    setShowTechniquePicker(false);
+  }, []);
+
+  const syncPickerLayouts = useCallback(() => {
+    const hasPickerOpen = showPsePicker || showTechniquePicker;
+    if (!hasPickerOpen) return;
+    requestAnimationFrame(() => {
+      if (showPsePicker) {
+        pseTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setPseTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showTechniquePicker) {
+        techniqueTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setTechniqueTriggerLayout({ x, y, width, height });
+        });
+      }
+      containerRef.current?.measureInWindow((x, y) => {
+        setContainerWindow({ x, y });
+      });
+    });
+  }, [showPsePicker, showTechniquePicker]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!id) return;
+      const [attendanceRecords, students] = await Promise.all([
+        getAttendanceByDate(id, sessionDate),
+        getStudentsByClass(id),
+      ]);
+      if (!alive) return;
+      if (attendanceRecords.length) {
+        const present = attendanceRecords.filter(
+          (record) => record.status === "presente"
+        ).length;
+        const total = attendanceRecords.length;
+        const percent = total > 0 ? Math.round((present / total) * 100) : 0;
+        setAttendancePercent(percent);
+      } else if (students.length) {
+        setAttendancePercent(0);
+      } else {
+        setAttendancePercent(null);
+      }
       const plans = await getTrainingPlans();
       const byClass = plans.filter((item) => item.classId === id);
       const byDate = byClass.find((item) => item.applyDate === sessionDate);
@@ -57,6 +145,10 @@ export default function LogScreen() {
     };
   }, [activity, id, sessionDate, weekdayId]);
 
+  useEffect(() => {
+    syncPickerLayouts();
+  }, [showPsePicker, showTechniquePicker, syncPickerLayouts]);
+
   const saveLog = async () => {
     const dateValue =
       typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
@@ -72,11 +164,13 @@ export default function LogScreen() {
         ? participantsValue
         : undefined;
     const activityValue = activity.trim() || autoActivity.trim();
+    const attendanceValue =
+      typeof attendancePercent === "number" ? attendancePercent : 0;
     await saveSessionLog({
       classId: id,
       PSE,
       technique,
-      attendance,
+      attendance: attendanceValue,
       activity: activityValue,
       conclusion,
       participantsCount: parsedParticipants,
@@ -104,159 +198,271 @@ export default function LogScreen() {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <View style={{ gap: 6, marginBottom: 12 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Registro pos-aula
+            Relatorio da aula
           </Text>
-          <Text style={{ color: colors.muted }}>Avaliacao rapida da aula</Text>
+          <Text style={{ color: colors.muted }}>Resumo da aula aplicada</Text>
         </View>
+        <View ref={containerRef} style={{ position: "relative", gap: 10 }}>
+          <View
+            style={{
+              gap: 12,
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              shadowColor: "#000",
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 2,
+            }}
+          >
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                PSE (0-10)
+              </Text>
+              <View ref={pseTriggerRef}>
+                <Pressable
+                  onPress={() => togglePicker("pse")}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                    {String(PSE)}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{ transform: [{ rotate: showPsePicker ? "180deg" : "0deg" }] }}
+                  />
+                </Pressable>
+              </View>
+            </View>
 
-        <View
-          style={{
-            gap: 10,
-            padding: 16,
-            borderRadius: 20,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 2,
-          }}
-        >
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-            PSE (0-10): {PSE}
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginVertical: 8 }}>
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <Button
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Tecnica geral
+              </Text>
+              <View ref={techniqueTriggerRef}>
+                <Pressable
+                  onPress={() => togglePicker("technique")}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                    {technique}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [{ rotate: showTechniquePicker ? "180deg" : "0deg" }],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Numero de participantes
+              </Text>
+              <TextInput
+                placeholder="Ex: 12"
+                value={participantsCount}
+                onChangeText={setParticipantsCount}
+                keyboardType="numeric"
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Atividade
+              </Text>
+              <TextInput
+                placeholder="Resumo da atividade principal"
+                value={activity}
+                onChangeText={(value) => {
+                  setActivity(value);
+                  closePickers();
+                }}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Conclusao
+              </Text>
+              <TextInput
+                placeholder="Observacoes finais da aula"
+                value={conclusion}
+                onChangeText={(value) => {
+                  setConclusion(value);
+                  closePickers();
+                }}
+                placeholderTextColor={colors.placeholder}
+                multiline
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  minHeight: 90,
+                  textAlignVertical: "top",
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Fotos
+              </Text>
+              <TextInput
+                placeholder="Cole links ou descreva as fotos"
+                value={photos}
+                onChangeText={(value) => {
+                  setPhotos(value);
+                  closePickers();
+                }}
+                placeholderTextColor={colors.placeholder}
+                multiline
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  minHeight: 80,
+                  textAlignVertical: "top",
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ marginTop: 12, gap: 8 }}>
+              <Button label="Salvar e gerar relatorio" onPress={handleSaveAndReport} />
+              <Button label="Salvar" variant="secondary" onPress={handleSave} />
+            </View>
+          </View>
+
+          <AnchoredDropdown
+            visible={showPsePickerContent}
+            layout={pseTriggerLayout}
+            container={containerWindow}
+            animationStyle={psePickerAnimStyle}
+            zIndex={420}
+            maxHeight={220}
+            nestedScrollEnabled
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.inputBg,
+            }}
+            scrollContentStyle={{ padding: 4 }}
+          >
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n, index) => (
+              <Pressable
                 key={n}
-                label={String(n)}
-                onPress={() => setPSE(n)}
-                variant={PSE === n ? "primary" : "secondary"}
-              />
+                onPress={() => handleSelectPse(n)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  margin: index === 0 ? 6 : 2,
+                  backgroundColor: PSE === n ? colors.primaryBg : "transparent",
+                }}
+              >
+                <Text
+                  style={{
+                    color: PSE === n ? colors.primaryText : colors.text,
+                    fontSize: 12,
+                    fontWeight: PSE === n ? "700" : "500",
+                  }}
+                >
+                  {n}
+                </Text>
+              </Pressable>
             ))}
-          </View>
+          </AnchoredDropdown>
 
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-            Tecnica geral: {technique}
-          </Text>
-          <View style={{ flexDirection: "row", gap: 8, marginVertical: 8 }}>
-            {(["boa", "ok", "ruim"] as const).map((t) => (
-              <Button
-                key={t}
-                label={t}
-                onPress={() => setTechnique(t)}
-                variant={technique === t ? "primary" : "secondary"}
-              />
+          <AnchoredDropdown
+            visible={showTechniquePickerContent}
+            layout={techniqueTriggerLayout}
+            container={containerWindow}
+            animationStyle={techniquePickerAnimStyle}
+            zIndex={420}
+            maxHeight={200}
+            nestedScrollEnabled
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.inputBg,
+            }}
+            scrollContentStyle={{ padding: 4 }}
+          >
+            {(["boa", "ok", "ruim"] as const).map((option, index) => (
+              <Pressable
+                key={option}
+                onPress={() => handleSelectTechnique(option)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  margin: index === 0 ? 6 : 2,
+                  backgroundColor: technique === option ? colors.primaryBg : "transparent",
+                }}
+              >
+                <Text
+                  style={{
+                    color: technique === option ? colors.primaryText : colors.text,
+                    fontSize: 12,
+                    fontWeight: technique === option ? "700" : "500",
+                  }}
+                >
+                  {option}
+                </Text>
+              </Pressable>
             ))}
-          </View>
-
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-            Presenca (%): {attendance}
-          </Text>
-          <View style={{ flexDirection: "row", gap: 8, marginVertical: 8 }}>
-            {[60, 80, 100].map((n) => (
-              <Button
-                key={n}
-                label={String(n)}
-                onPress={() => setAttendance(n)}
-                variant={attendance === n ? "primary" : "secondary"}
-              />
-            ))}
-          </View>
-
-          <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Numero de participantes
-            </Text>
-            <TextInput
-              placeholder="Ex: 12"
-              value={participantsCount}
-              onChangeText={setParticipantsCount}
-              keyboardType="numeric"
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          </View>
-
-          <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Atividade
-            </Text>
-            <TextInput
-              placeholder="Resumo da atividade principal"
-              value={activity}
-              onChangeText={setActivity}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          </View>
-
-          <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Conclusao
-            </Text>
-            <TextInput
-              placeholder="Observacoes finais da aula"
-              value={conclusion}
-              onChangeText={setConclusion}
-              placeholderTextColor={colors.placeholder}
-              multiline
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                minHeight: 90,
-                textAlignVertical: "top",
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          </View>
-
-          <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Fotos (links ou notas)
-            </Text>
-            <TextInput
-              placeholder="Cole links ou descreva as fotos"
-              value={photos}
-              onChangeText={setPhotos}
-              placeholderTextColor={colors.placeholder}
-              multiline
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                minHeight: 80,
-                textAlignVertical: "top",
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          </View>
-
-          <View style={{ marginTop: 16, gap: 8 }}>
-            <Button label="Salvar e gerar relatorio" onPress={handleSaveAndReport} />
-            <Button label="Salvar" variant="secondary" onPress={handleSave} />
-          </View>
+          </AnchoredDropdown>
         </View>
       </ScrollView>
     </SafeAreaView>
