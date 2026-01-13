@@ -1053,7 +1053,11 @@ export default function SessionScreen() {
               Nenhum relatorio registrado ainda.
             </Text>
           )}
-          <View ref={containerRef} style={{ gap: 12, marginTop: 12 }}>
+          <View
+            ref={containerRef}
+            onLayout={syncPickerLayouts}
+            style={{ gap: 12, marginTop: 12, position: "relative" }}
+          >
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
