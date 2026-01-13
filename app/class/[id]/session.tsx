@@ -680,7 +680,10 @@ export default function SessionScreen() {
           return (
             <Pressable
               key={tab.id}
-              onPress={() => setSessionTab(tab.id)}
+              onPress={() => {
+                closePickers();
+                setSessionTab(tab.id);
+              }}
               style={{
                 flex: 1,
                 paddingVertical: 8,
@@ -704,7 +707,12 @@ export default function SessionScreen() {
         })}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingVertical: 12, gap: 12 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingVertical: 12, gap: 12 }}
+        onScroll={syncPickerLayouts}
+        scrollEventThrottle={16}
+        scrollEnabled={!showPsePicker && !showTechniquePicker}
+      >
         {sessionTab === "treino" && plan
           ? [
               { label: warmupLabel, items: warmup },
