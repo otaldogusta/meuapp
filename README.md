@@ -98,6 +98,24 @@ Rodar no SQL Editor do Supabase e depois atualizar o schema:
 select pg_notify('pgrst', 'reload schema');
 ```
 
+## Importacao de planejamento (CSV)
+
+O importador resolve a turma pelo `title` e pela `date` no CSV.
+
+Regras:
+- `date` deve estar em `YYYY-MM-DD`.
+- `title` precisa conter tokens no formato: `<UNIDADE> | <HORARIO> | <FAIXA> | ...`
+- `HORARIO` deve ser `HH:MM-HH:MM` (com zero a esquerda).
+- `FAIXA` aceita `8-11` e sera normalizada para `08-11`.
+
+Exemplo:
+```
+Rede Esperanca | 14:00-15:00 | 08-11 | Semana 01 - Diagnostica
+```
+
+Se existir ambiguidade (mais de uma turma com mesma unidade + horario + faixa + dia),
+o importador retorna erro com a lista de turmas candidatas.
+
 ## Pendencias (to-do)
 
 - Home > Agenda do dia: revisar botao "Fazer chamada" para abrir a turma correta do dia/horario, e opcionalmente exibir turma/horario no botao.
