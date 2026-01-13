@@ -146,6 +146,24 @@ export default function SessionScreen() {
     return day === 0 ? 7 : day;
   }, [sessionDate]);
 
+  useEffect(() => {
+    setReportLoaded(false);
+    setReportBaseline({
+      PSE: 0,
+      technique: "nenhum",
+      activity: "",
+      conclusion: "",
+      participantsCount: "",
+      photos: "",
+    });
+    setPSE(0);
+    setTechnique("nenhum");
+    setActivity("");
+    setConclusion("");
+    setParticipantsCount("");
+    setPhotos("");
+  }, [id, sessionDate]);
+
   const togglePicker = (target: "pse" | "technique") => {
     setShowPsePicker((prev) => (target === "pse" ? !prev : false));
     setShowTechniquePicker((prev) => (target === "technique" ? !prev : false));
@@ -292,11 +310,42 @@ export default function SessionScreen() {
       if (!fallback) return;
       setAutoActivity(fallback);
       if (!activity.trim()) setActivity(fallback);
+      if (
+        !sessionLog &&
+        reportBaseline.activity === "" &&
+        reportBaseline.conclusion === "" &&
+        reportBaseline.participantsCount === "" &&
+        reportBaseline.photos === "" &&
+        reportBaseline.PSE === 0 &&
+        reportBaseline.technique === "nenhum"
+      ) {
+        const nextActivity = activity.trim() ? activity : fallback;
+        setReportBaseline({
+          PSE,
+          technique,
+          activity: nextActivity,
+          conclusion,
+          participantsCount,
+          photos,
+        });
+      }
     })();
     return () => {
       alive = false;
     };
-  }, [activity, id, sessionDate, weekdayId]);
+  }, [
+    activity,
+    id,
+    sessionDate,
+    weekdayId,
+    sessionLog,
+    PSE,
+    technique,
+    conclusion,
+    participantsCount,
+    photos,
+    reportBaseline,
+  ]);
 
   useEffect(() => {
     syncPickerLayouts();
@@ -1336,7 +1385,7 @@ export default function SessionScreen() {
 
             <View style={{ gap: 8 }}>
               <Button
-                label={reportHasChanges ? "Salvar alteracoes" : "Salvar"}
+                label={sessionLog ? "Salvar alteracoes" : "Salvar"}
                 variant="secondary"
                 onPress={handleSaveReport}
                 disabled={!reportHasChanges}
