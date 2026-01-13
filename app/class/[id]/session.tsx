@@ -409,6 +409,7 @@ export default function SessionScreen() {
       </View>
 
       {plan ? (
+        {sessionTab === "relatorio" ? (
         <View
           style={{
             padding: 16,
@@ -643,7 +644,6 @@ export default function SessionScreen() {
           </View>
         ) : null}
         {sessionTab === "scouting" ? (
-        {sessionTab === "relatorio" ? (
         <View
           style={{
             padding: 14,
@@ -801,6 +801,7 @@ export default function SessionScreen() {
           </Pressable>
         </View>
         ) : null}
+        {sessionTab === "relatorio" ? (
         <View
           style={{
             padding: 14,
