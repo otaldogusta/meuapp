@@ -27,6 +27,10 @@ import {
   getFocusSuggestion,
   getSkillMetrics,
   getTotalActions,
+  scoutingEnvioTooltip,
+  scoutingInitiationNote,
+  scoutingPriorityNote,
+  scoutingSkillHelp,
   scoutingSkills,
 } from "../../../src/core/scouting";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -613,8 +617,36 @@ export default function SessionScreen() {
               Toque para somar, segure para remover.
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {scoutingInitiationNote}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {scoutingPriorityNote}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {scoutingEnvioTooltip}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
               Total de acoes: {totalActions}
             </Text>
+          </View>
+          <View
+            style={{
+              padding: 10,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              gap: 6,
+            }}
+          >
+            <Text style={{ fontWeight: "700", color: colors.text, fontSize: 12 }}>
+              Guia rapido (0/1/2)
+            </Text>
+            {scoutingSkills.map((skill) => (
+              <Text key={skill.id} style={{ color: colors.muted, fontSize: 12 }}>
+                {skill.label}: {scoutingSkillHelp[skill.id].join(" | ")}
+              </Text>
+            ))}
           </View>
           <View style={{ gap: 10 }}>
             {scoutingSkills.map((skill, index) => {
