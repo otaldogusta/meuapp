@@ -808,9 +808,30 @@ export default function SessionScreen() {
                 <Text style={{ color: colors.text, marginTop: 4 }}>
                   {"Tempo: " + durations[index] + " min"}
                 </Text>
-                <Text style={{ color: colors.muted, marginTop: 6 }}>
-                  {section.items.length ? section.items.join(" - ") : "Sem itens"}
-                </Text>
+                    <View style={{ marginTop: 6, gap: 4 }}>
+                      {section.items.length ? (
+                        section.items.map((item, itemIndex) => {
+                          const trimmed = item.trim();
+                          const isMeta =
+                            trimmed.toLowerCase().startsWith("objetivo geral") ||
+                            trimmed.toLowerCase().startsWith("objetivo especifico") ||
+                            trimmed.toLowerCase().startsWith("observacoes");
+                          return (
+                            <Text
+                              key={`${section.label}-${itemIndex}`}
+                              style={{
+                                color: isMeta ? colors.text : colors.muted,
+                                fontWeight: isMeta ? "600" : "400",
+                              }}
+                            >
+                              {isMeta ? trimmed : `• ${trimmed}`}
+                            </Text>
+                          );
+                        })
+                      ) : (
+                        <Text style={{ color: colors.muted }}>Sem itens</Text>
+                      )}
+                    </View>
                 <Pressable
                   onPress={() => setActiveIndex(index)}
                   style={{
