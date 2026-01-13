@@ -1053,8 +1053,9 @@ export default function SessionScreen() {
               Nenhum relatorio registrado ainda.
             </Text>
           )}
-          <View ref={containerRef} style={{ gap: 10, marginTop: 12 }}>
-            <View style={{ gap: 6 }}>
+          <View ref={containerRef} style={{ gap: 12, marginTop: 12 }}>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 PSE (0-10)
               </Text>
@@ -1083,9 +1084,9 @@ export default function SessionScreen() {
                   />
                 </Pressable>
               </View>
-            </View>
+              </View>
 
-            <View style={{ gap: 6 }}>
+              <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Tecnica geral
               </Text>
@@ -1117,8 +1118,10 @@ export default function SessionScreen() {
                 </Pressable>
               </View>
             </View>
+            </View>
 
-            <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Numero de participantes
               </Text>
@@ -1139,7 +1142,7 @@ export default function SessionScreen() {
               />
             </View>
 
-            <View style={{ gap: 6 }}>
+              <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Atividade
               </Text>
@@ -1160,6 +1163,7 @@ export default function SessionScreen() {
                   color: colors.inputText,
                 }}
               />
+            </View>
             </View>
 
             <View style={{ gap: 6 }}>
