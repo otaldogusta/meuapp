@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Share,
   Text,
   TextInput,
   View,
@@ -19,9 +20,17 @@ import {
   duplicateClass,
   getClassById,
   getClasses,
+  getLatestScoutingLog,
+  getStudentsByClass,
   updateClass,
 } from "../../src/db/seed";
-import type { ClassGroup } from "../../src/core/models";
+import type { ClassGroup, ScoutingLog } from "../../src/core/models";
+import {
+  countsFromLog,
+  getFocusSuggestion,
+  getSkillMetrics,
+  scoutingSkills,
+} from "../../src/core/scouting";
 import { Button } from "../../src/ui/Button";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -48,6 +57,7 @@ export default function ClassDetails() {
   const [startTime, setStartTime] = useState("14:00");
   const [duration, setDuration] = useState("60");
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
+  const [latestScouting, setLatestScouting] = useState<ScoutingLog | null>(null);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [goal, setGoal] = useState<ClassGroup["goal"]>("Fundamentos");
   const [saving, setSaving] = useState(false);
@@ -119,6 +129,15 @@ export default function ClassDetails() {
     const pad = (value: number) => String(value).padStart(2, "0");
     return `${pad(hour)}:${pad(minute)} - ${pad(endHour)}:${pad(endMinute)}`;
   };
+  const safeFileName = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") || "turma";
+  const escapeCsv = (value: string | number | null | undefined) =>
+    `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const formatShortDate = (value: string) =>
+    value.includes("-") ? value.split("-").reverse().join("/") : value;
   const toMinutes = (value: string) => {
     if (!isValidTime(value)) return null;
     const [hour, minute] = value.split(":").map(Number);
@@ -173,14 +192,26 @@ export default function ClassDetails() {
       .slice(0, 4);
   }, [allClasses, clsUnit, goals]);
 
+  const scoutingCounts = useMemo(() => {
+    if (!latestScouting) return null;
+    return countsFromLog(latestScouting);
+  }, [latestScouting]);
+
+  const scoutingFocus = useMemo(() => {
+    if (!scoutingCounts) return null;
+    return getFocusSuggestion(scoutingCounts, 10);
+  }, [scoutingCounts]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       const data = await getClassById(id);
       const list = await getClasses();
+      const scouting = data ? await getLatestScoutingLog(data.id) : null;
       if (alive) {
         setCls(data);
         setAllClasses(list);
+        setLatestScouting(scouting);
         setName(data?.name ?? "");
         setUnit(data?.unit ?? "");
         setAgeBand(data?.ageBand ?? "8-9");
@@ -282,6 +313,67 @@ export default function ClassDetails() {
         logAction("Excluir turma", { classId: cls.id });
         router.replace("/classes");
       },
+    });
+  };
+
+  const buildRosterCsv = (students: Awaited<ReturnType<typeof getStudentsByClass>>) => {
+    const exportDate = new Date().toISOString().slice(0, 10);
+    const classTitle = `${classAgeBand} ${classStartTime}`;
+    const header = [
+      "unit",
+      "class_id",
+      "class_name",
+      "class_title",
+      "age_band",
+      "days_of_week",
+      "start_time",
+      "export_date",
+      "participant_name",
+      "age",
+      "phone",
+      "guardian_name",
+      "guardian_phone",
+    ];
+    const rows = students.map((student) => [
+      unitLabel,
+      cls.id,
+      className,
+      classTitle,
+      classAgeBand,
+      formatDays(classDays),
+      classStartTime,
+      exportDate,
+      student.name,
+      student.age,
+      student.phone,
+      student.guardianName ?? "",
+      student.guardianPhone ?? "",
+    ]);
+    return [header, ...rows]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\n");
+  };
+
+  const handleExportRoster = async () => {
+    if (!cls) return;
+    const list = await getStudentsByClass(cls.id);
+    const csv = buildRosterCsv(list);
+    const fileName = `lista_chamada_${safeFileName(unitLabel)}_${safeFileName(
+      cls.id
+    )}.csv`;
+    if (Platform.OS === "web") {
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+    await Share.share({
+      title: `Lista de chamada - ${className}`,
+      message: csv,
     });
   };
 
@@ -443,7 +535,70 @@ export default function ClassDetails() {
                 Presenca rapida
               </Text>
             </Pressable>
+            <Pressable
+              onPress={handleExportRoster}
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                Exportar lista da turma
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                CSV com participantes
+              </Text>
+            </Pressable>
           </View>
+        </View>
+
+        <View style={getSectionCardStyle(colors, "neutral", { radius: 18 })}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            Scouting recente
+          </Text>
+          {latestScouting && scoutingCounts ? (
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {formatShortDate(latestScouting.date)}
+              </Text>
+              <View style={{ gap: 6 }}>
+                {scoutingSkills.map((skill) => {
+                  const metrics = getSkillMetrics(scoutingCounts[skill.id]);
+                  const goodPct = Math.round(metrics.goodPct * 100);
+                  return (
+                    <View key={skill.id} style={{ flexDirection: "row", gap: 10 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700", minWidth: 90 }}>
+                        {skill.label}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {metrics.total} acoes • media {metrics.avg.toFixed(2)} • boas {goodPct}%
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              {scoutingFocus ? (
+                <View style={{ gap: 4 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    Foco sugerido: {scoutingFocus.label}
+                  </Text>
+                  <Text style={{ color: colors.muted }}>{scoutingFocus.text}</Text>
+                </View>
+              ) : (
+                <Text style={{ color: colors.muted }}>
+                  Registre pelo menos 10 acoes para sugerir foco.
+                </Text>
+              )}
+            </View>
+          ) : (
+            <Text style={{ color: colors.muted }}>
+              Nenhum scouting registrado ainda.
+            </Text>
+          )}
         </View>
 
       </ScrollView>

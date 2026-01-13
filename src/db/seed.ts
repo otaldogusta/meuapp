@@ -11,6 +11,7 @@ import type {
   AttendanceRecord,
   Exercise,
   ClassPlan,
+  ScoutingLog,
 } from "../core/models";
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
@@ -104,9 +105,12 @@ const supabaseDelete = async (path: string) => {
 
 const isMissingRelation = (error: unknown, relation: string) => {
   const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+  const rel = `public.${relation}`.toLowerCase();
   return (
     message.includes(`relation "public.${relation}"`) ||
     message.includes(`relation \"public.${relation}\"`) ||
+    (lower.includes("could not find the table") && lower.includes(rel)) ||
     message.includes("does not exist")
   );
 };
@@ -235,6 +239,27 @@ type AttendanceRow = {
   note: string;
   pain_score?: number | null;
   createdat: string;
+};
+
+type ScoutingLogRow = {
+  id: string;
+  classid: string;
+  unit?: string | null;
+  date: string;
+  serve_0?: number | null;
+  serve_1?: number | null;
+  serve_2?: number | null;
+  receive_0?: number | null;
+  receive_1?: number | null;
+  receive_2?: number | null;
+  set_0?: number | null;
+  set_1?: number | null;
+  set_2?: number | null;
+  attack_send_0?: number | null;
+  attack_send_1?: number | null;
+  attack_send_2?: number | null;
+  createdat: string;
+  updatedat?: string | null;
 };
 
 type ClassPlanRow = {
@@ -778,11 +803,120 @@ export async function deleteClassCascade(id: string) {
   await supabaseDelete(
     "/attendance_logs?classid=eq." + encodeURIComponent(id)
   );
+  await supabaseDelete(
+    "/scouting_logs?classid=eq." + encodeURIComponent(id)
+  );
   await supabaseDelete("/students?classid=eq." + encodeURIComponent(id));
   await supabaseDelete(
     "/session_logs?classid=eq." + encodeURIComponent(id)
   );
   await deleteClass(id);
+}
+
+const scoutingRowToLog = (row: ScoutingLogRow): ScoutingLog => ({
+  id: row.id,
+  classId: row.classid,
+  unit: row.unit ?? undefined,
+  date: row.date,
+  serve0: row.serve_0 ?? 0,
+  serve1: row.serve_1 ?? 0,
+  serve2: row.serve_2 ?? 0,
+  receive0: row.receive_0 ?? 0,
+  receive1: row.receive_1 ?? 0,
+  receive2: row.receive_2 ?? 0,
+  set0: row.set_0 ?? 0,
+  set1: row.set_1 ?? 0,
+  set2: row.set_2 ?? 0,
+  attackSend0: row.attack_send_0 ?? 0,
+  attackSend1: row.attack_send_1 ?? 0,
+  attackSend2: row.attack_send_2 ?? 0,
+  createdAt: row.createdat,
+  updatedAt: row.updatedat ?? undefined,
+});
+
+export async function getScoutingLogByDate(
+  classId: string,
+  date: string
+): Promise<ScoutingLog | null> {
+  try {
+    const rows = await supabaseGet<ScoutingLogRow[]>(
+      "/scouting_logs?select=*&classid=eq." +
+        encodeURIComponent(classId) +
+        "&date=eq." +
+        encodeURIComponent(date) +
+        "&limit=1"
+    );
+    const row = rows[0];
+    return row ? scoutingRowToLog(row) : null;
+  } catch (error) {
+    if (isMissingRelation(error, "scouting_logs")) return null;
+    throw error;
+  }
+}
+
+export async function getLatestScoutingLog(
+  classId: string
+): Promise<ScoutingLog | null> {
+  try {
+    const rows = await supabaseGet<ScoutingLogRow[]>(
+      "/scouting_logs?select=*&classid=eq." +
+        encodeURIComponent(classId) +
+        "&order=date.desc&limit=1"
+    );
+    const row = rows[0];
+    return row ? scoutingRowToLog(row) : null;
+  } catch (error) {
+    if (isMissingRelation(error, "scouting_logs")) return null;
+    throw error;
+  }
+}
+
+export async function saveScoutingLog(log: ScoutingLog) {
+  const now = new Date().toISOString();
+  const existing = await getScoutingLogByDate(log.classId, log.date);
+  const payload = {
+    classid: log.classId,
+    unit: log.unit ?? null,
+    date: log.date,
+    serve_0: log.serve0,
+    serve_1: log.serve1,
+    serve_2: log.serve2,
+    receive_0: log.receive0,
+    receive_1: log.receive1,
+    receive_2: log.receive2,
+    set_0: log.set0,
+    set_1: log.set1,
+    set_2: log.set2,
+    attack_send_0: log.attackSend0,
+    attack_send_1: log.attackSend1,
+    attack_send_2: log.attackSend2,
+    updatedat: now,
+  };
+
+  if (existing) {
+    await supabasePatch(
+      "/scouting_logs?classid=eq." +
+        encodeURIComponent(log.classId) +
+        "&date=eq." +
+        encodeURIComponent(log.date),
+      payload
+    );
+    return { ...log, createdAt: existing.createdAt, updatedAt: now };
+  }
+
+  const created = {
+    ...payload,
+    id: log.id || "scout_" + Date.now(),
+    createdat: log.createdAt || now,
+    updatedat: now,
+  };
+  await supabasePost("/scouting_logs", [created]);
+  return {
+    ...log,
+    id: created.id,
+    createdAt: created.createdat,
+    updatedAt: now,
+  };
 }
 
 export async function saveSessionLog(log: SessionLog) {

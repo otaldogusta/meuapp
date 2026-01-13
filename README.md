@@ -86,6 +86,10 @@ Checklist rapido ao aplicar em outra tela:
 - Usar `toggleNewPicker` (ou equivalente) para fechar outras listas.
 - No `ScrollView`, chamar `syncPickerLayouts` no `onScroll`.
 
+## Pendencias (to-do)
+
+- Home > Agenda do dia: revisar botao "Fazer chamada" para abrir a turma correta do dia/horario, e opcionalmente exibir turma/horario no botao.
+
 ## Get a fresh project
 
 When you're ready, run:

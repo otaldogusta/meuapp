@@ -15,9 +15,20 @@ import {
   getTrainingPlans,
   getClasses,
   getSessionLogByDate,
+  getScoutingLogByDate,
   getStudentsByClass,
+  saveScoutingLog,
 } from "../../../src/db/seed";
-import type { ClassGroup, SessionLog, TrainingPlan } from "../../../src/core/models";
+import type { ClassGroup, SessionLog, TrainingPlan, ScoutingLog } from "../../../src/core/models";
+import {
+  buildLogFromCounts,
+  countsFromLog,
+  createEmptyCounts,
+  getFocusSuggestion,
+  getSkillMetrics,
+  getTotalActions,
+  scoutingSkills,
+} from "../../../src/core/scouting";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
@@ -40,6 +51,10 @@ export default function SessionScreen() {
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
+  const [scoutingLog, setScoutingLog] = useState<ScoutingLog | null>(null);
+  const [scoutingCounts, setScoutingCounts] = useState(createEmptyCounts());
+  const [scoutingBaseline, setScoutingBaseline] = useState(createEmptyCounts());
+  const [scoutingSaving, setScoutingSaving] = useState(false);
   const [studentsCount, setStudentsCount] = useState(0);
   const [didAutoReport, setDidAutoReport] = useState(false);
   const sessionDate =
@@ -103,6 +118,13 @@ export default function SessionScreen() {
       if (id) {
         const log = await getSessionLogByDate(id, sessionDate);
         if (alive) setSessionLog(log);
+        const scouting = await getScoutingLogByDate(id, sessionDate);
+        if (alive) {
+          const counts = scouting ? countsFromLog(scouting) : createEmptyCounts();
+          setScoutingLog(scouting);
+          setScoutingCounts(counts);
+          setScoutingBaseline(counts);
+        }
       }
     })();
     return () => {
@@ -144,6 +166,47 @@ export default function SessionScreen() {
   }, [plan]);
 
   const totalMinutes = durations.reduce((sum, value) => sum + value, 0);
+
+  const updateScoutingCount = (
+    skillId: (typeof scoutingSkills)[number]["id"],
+    score: 0 | 1 | 2,
+    delta: 1 | -1
+  ) => {
+    setScoutingCounts((prev) => {
+      const current = prev[skillId][score];
+      const nextValue = Math.max(0, current + delta);
+      return {
+        ...prev,
+        [skillId]: {
+          ...prev[skillId],
+          [score]: nextValue,
+        },
+      };
+    });
+  };
+
+  const scoutingHasChanges = useMemo(() => {
+    return scoutingSkills.some((skill) => {
+      const current = scoutingCounts[skill.id];
+      const base = scoutingBaseline[skill.id];
+      return current[0] !== base[0] || current[1] !== base[1] || current[2] !== base[2];
+    });
+  }, [scoutingBaseline, scoutingCounts]);
+
+  const scoutingTotals = useMemo(
+    () => scoutingSkills.map((skill) => getSkillMetrics(scoutingCounts[skill.id])),
+    [scoutingCounts]
+  );
+
+  const totalActions = useMemo(
+    () => getTotalActions(scoutingCounts),
+    [scoutingCounts]
+  );
+
+  const focusSuggestion = useMemo(
+    () => getFocusSuggestion(scoutingCounts, 10),
+    [scoutingCounts]
+  );
   const monthLabel = (value: string) => {
     const [year, month] = value.split("-");
     const names = [
@@ -264,6 +327,32 @@ export default function SessionScreen() {
     } catch (error) {
       showSaveToast({ message: "Nao foi possivel gerar o relatorio.", variant: "error" });
       Alert.alert("Falha ao exportar PDF", "Tente novamente.");
+    }
+  };
+
+  const handleSaveScouting = async () => {
+    if (!cls) return;
+    setScoutingSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const base: Omit<ScoutingLog, "serve0" | "serve1" | "serve2" | "receive0" | "receive1" | "receive2" | "set0" | "set1" | "set2" | "attackSend0" | "attackSend1" | "attackSend2"> =
+        scoutingLog ?? {
+          id: "scout_" + Date.now(),
+          classId: cls.id,
+          unit: cls.unit,
+          date: sessionDate,
+          createdAt: now,
+        };
+      const payload = buildLogFromCounts(base, scoutingCounts);
+      const saved = await saveScoutingLog(payload);
+      setScoutingLog(saved);
+      setScoutingBaseline(countsFromLog(saved));
+      showSaveToast({ message: "Scouting salvo com sucesso.", variant: "success" });
+    } catch (error) {
+      showSaveToast({ message: "Nao foi possivel salvar o scouting.", variant: "error" });
+      Alert.alert("Falha ao salvar", "Tente novamente.");
+    } finally {
+      setScoutingSaving(false);
     }
   };
 
@@ -501,6 +590,134 @@ export default function SessionScreen() {
             </View>
           </View>
         ) : null}
+        <View
+          style={{
+            padding: 14,
+            borderRadius: 18,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            shadowColor: "#000",
+            shadowOpacity: 0.04,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: 2,
+            gap: 10,
+          }}
+        >
+          <View style={{ gap: 4 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              Scouting (0-1-2)
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Toque para somar, segure para remover.
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Total de acoes: {totalActions}
+            </Text>
+          </View>
+          <View style={{ gap: 10 }}>
+            {scoutingSkills.map((skill, index) => {
+              const metrics = scoutingTotals[index];
+              const counts = scoutingCounts[skill.id];
+              const goodPct = Math.round(metrics.goodPct * 100);
+              return (
+                <View
+                  key={skill.id}
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontWeight: "700", color: colors.text }}>
+                      {skill.label}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {metrics.total} acoes • media {metrics.avg.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {([0, 1, 2] as const).map((score) => {
+                      const palette =
+                        score === 2
+                          ? { bg: colors.successBg, text: colors.successText }
+                          : score === 1
+                            ? { bg: colors.inputBg, text: colors.text }
+                            : { bg: colors.dangerSolidBg, text: colors.dangerSolidText };
+                      return (
+                        <Pressable
+                          key={score}
+                          onPress={() => updateScoutingCount(skill.id, score, 1)}
+                          onLongPress={() => updateScoutingCount(skill.id, score, -1)}
+                          delayLongPress={200}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            borderRadius: 12,
+                            alignItems: "center",
+                            backgroundColor: palette.bg,
+                          }}
+                        >
+                          <Text style={{ color: palette.text, fontWeight: "700" }}>
+                            {score}
+                          </Text>
+                          <Text style={{ color: palette.text, fontSize: 11, opacity: 0.9 }}>
+                            x{counts[score]}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Boas (2): {goodPct}%
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+          {focusSuggestion ? (
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Foco da proxima aula: {focusSuggestion.label}
+              </Text>
+              <Text style={{ color: colors.muted }}>{focusSuggestion.text}</Text>
+            </View>
+          ) : (
+            <Text style={{ color: colors.muted }}>
+              Registre pelo menos 10 acoes para sugerir o foco.
+            </Text>
+          )}
+          <Pressable
+            onPress={handleSaveScouting}
+            disabled={!scoutingHasChanges || scoutingSaving}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor:
+                !scoutingHasChanges || scoutingSaving
+                  ? colors.primaryDisabledBg
+                  : colors.primaryBg,
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  !scoutingHasChanges || scoutingSaving
+                    ? colors.secondaryText
+                    : colors.primaryText,
+                fontWeight: "700",
+              }}
+            >
+              Salvar scouting
+            </Text>
+          </Pressable>
+        </View>
         <View
           style={{
             padding: 14,

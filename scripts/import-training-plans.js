@@ -95,18 +95,49 @@ const splitList = (value) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-const extractStartTime = (title) => {
-  const match = title.match(/(\d{2}:\d{2})\s*-\s*\d{2}:\d{2}/);
-  return match ? match[1] : "";
-};
+const pad2 = (value) => String(value).padStart(2, "0");
 
-const extractAgeBand = (title) => {
-  const match = title.match(/\((\d{2})-(\d{2})\)/);
+const normalizeAgeBand = (value) => {
+  const match = value.match(/(\d{1,2})\s*-\s*(\d{1,2})/);
   if (!match) return "";
   const start = Number(match[1]);
   const end = Number(match[2]);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return "";
-  return `${start}-${end}`;
+  return `${pad2(start)}-${pad2(end)}`;
+};
+
+const normalizeTimeRange = (value) => {
+  const match = value.match(
+    /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/
+  );
+  if (!match) return "";
+  const startHour = pad2(Number(match[1]));
+  const startMin = pad2(Number(match[2]));
+  const endHour = pad2(Number(match[3]));
+  const endMin = pad2(Number(match[4]));
+  return `${startHour}:${startMin}-${endHour}:${endMin}`;
+};
+
+const extractTitleInfo = (title) => {
+  const parts = title
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const unit = parts[0] ?? "";
+  const timePart = parts.find((part) =>
+    /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(part)
+  );
+  const agePart = parts.find((part) => /\d{1,2}\s*-\s*\d{1,2}/.test(part));
+  const timeRange = timePart ? normalizeTimeRange(timePart) : "";
+  const ageBand = agePart ? normalizeAgeBand(agePart) : "";
+  const startTime = timeRange ? timeRange.split("-")[0] : "";
+  return { unit, timeRange, startTime, ageBand };
+};
+
+const isValidIsoDate = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(date.getTime());
 };
 
 const getWeekday = (dateIso) => {
@@ -129,16 +160,16 @@ const buildMain = (row) => {
   return [...extras, ...mainItems];
 };
 
-const matchClass = (classes, row, unitHint) => {
-  const title = row.title || "";
-  const startTime = extractStartTime(title);
-  const ageBand = extractAgeBand(title);
+const matchClass = (classes, row, titleInfo, unitHint) => {
+  const startTime = titleInfo.startTime;
+  const ageBand = titleInfo.ageBand;
   const weekday = getWeekday(row.date);
   let candidates = classes;
 
-  if (unitHint) {
+  if (titleInfo.unit || unitHint) {
+    const resolvedUnit = titleInfo.unit || unitHint;
     candidates = candidates.filter(
-      (cls) => (cls.unit || "").toLowerCase() === unitHint.toLowerCase()
+      (cls) => (cls.unit || "").toLowerCase() === resolvedUnit.toLowerCase()
     );
   }
 
@@ -219,13 +250,43 @@ const run = async () => {
   const plans = [];
 
   rows.forEach((row, index) => {
-    const candidates = matchClass(classes, row, unitHint);
+    const titleInfo = extractTitleInfo(row.title || "");
+    const issues = [];
+
+    if (!row.date || !isValidIsoDate(row.date)) {
+      issues.push("date deve estar no formato YYYY-MM-DD");
+    }
+    if (!titleInfo.unit && !unitHint) {
+      issues.push("unidade nao encontrada no title");
+    }
+    if (!titleInfo.timeRange) {
+      issues.push("horario nao encontrado (HH:MM-HH:MM)");
+    }
+    if (!titleInfo.ageBand) {
+      issues.push("faixa etaria nao encontrada (08-11)");
+    }
+
+    if (issues.length) {
+      errors.push({
+        index,
+        date: row.date,
+        title: row.title,
+        reason: issues.join("; "),
+      });
+      return;
+    }
+
+    const candidates = matchClass(classes, row, titleInfo, unitHint);
     if (candidates.length !== 1) {
       errors.push({
         index,
         date: row.date,
         title: row.title,
         candidates: candidates.map((cls) => cls.id),
+        reason:
+          candidates.length === 0
+            ? "nenhuma turma encontrada (verifique unidade/horario/faixa/dia)"
+            : "ambiguidade (mais de uma turma encontrada)",
       });
       return;
     }
@@ -235,9 +296,12 @@ const run = async () => {
   if (errors.length) {
     console.error("Falha ao resolver turma para algumas linhas:");
     errors.forEach((err) => {
-      console.error(
-        `- Linha ${err.index + 2} (${err.date}): ${err.title} -> ${err.candidates.join(", ")}`
-      );
+      const base = `- Linha ${err.index + 2} (${err.date}): ${err.title}`;
+      const candidates = err.candidates?.length
+        ? ` -> ${err.candidates.join(", ")}`
+        : "";
+      const reason = err.reason ? ` (${err.reason})` : "";
+      console.error(`${base}${candidates}${reason}`);
     });
     process.exit(1);
   }
