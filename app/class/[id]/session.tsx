@@ -633,12 +633,6 @@ export default function SessionScreen() {
             </View>
           ) : null}
           <ClassGenderBadge gender={classGender} size="md" />
-        </ScrollView>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-        >
           <View
             style={{
               paddingVertical: 6,
