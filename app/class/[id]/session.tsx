@@ -1001,12 +1001,15 @@ export default function SessionScreen() {
         ) : null}
         {sessionTab === "relatorio" ? (
         <View
+          ref={containerRef}
+          onLayout={syncPickerLayouts}
           style={{
             padding: 14,
             borderRadius: 18,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
+            position: "relative",
             shadowColor: "#000",
             shadowOpacity: 0.04,
             shadowRadius: 10,
@@ -1053,11 +1056,7 @@ export default function SessionScreen() {
               Nenhum relatorio registrado ainda.
             </Text>
           )}
-          <View
-            ref={containerRef}
-            onLayout={syncPickerLayouts}
-            style={{ gap: 12, marginTop: 12, position: "relative" }}
-          >
+          <View style={{ gap: 12, marginTop: 12 }}>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
