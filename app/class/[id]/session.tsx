@@ -596,7 +596,6 @@ export default function SessionScreen() {
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
           {title}
         </Text>
-        <Text style={{ color: colors.muted }}>{headerSubtitle}</Text>
         <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
           {className}
         </Text>
