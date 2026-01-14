@@ -121,6 +121,7 @@ export type ScoutingLog = {
   clientId?: string;
   classId: string;
   unit?: string;
+  mode?: "treino" | "jogo";
   date: string;
   serve0: number;
   serve1: number;

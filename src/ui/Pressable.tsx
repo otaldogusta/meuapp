@@ -1,5 +1,10 @@
 import { Pressable as RNPressable } from "react-native";
-import type { PressableProps, StyleProp, ViewStyle } from "react-native";
+import type { PressableProps as RNPressableProps, StyleProp, ViewStyle } from "react-native";
+
+type WebContextMenuHandler = (event: unknown) => void;
+type PressableProps = RNPressableProps & {
+  onContextMenu?: WebContextMenuHandler;
+};
 
 const flattenStyle = (style: StyleProp<ViewStyle>) => {
   if (!style) return [];

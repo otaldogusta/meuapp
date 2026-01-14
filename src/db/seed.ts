@@ -183,7 +183,8 @@ const buildScoutingLogClientId = (log: ScoutingLog) => {
   const existing = (log.clientId || log.id || "").trim();
   if (existing) return existing;
   const datePart = log.date ? log.date.trim() : "unknown";
-  return `scout_${log.classId}_${datePart}`;
+  const mode = log.mode === "jogo" ? "jogo" : "treino";
+  return `scout_${log.classId}_${datePart}_${mode}`;
 };
 
 const enqueueWrite = async (write: PendingWrite) => {
@@ -369,6 +370,8 @@ type ScoutingLogRow = {
   id: string;
   classid: string;
   unit?: string | null;
+  mode?: string | null;
+  client_id?: string | null;
   date: string;
   serve_0?: number | null;
   serve_1?: number | null;
@@ -921,6 +924,8 @@ const scoutingRowToLog = (row: ScoutingLogRow): ScoutingLog => ({
   id: row.id,
   classId: row.classid,
   unit: row.unit ?? undefined,
+  mode: row.mode === "jogo" ? "jogo" : "treino",
+  clientId: row.client_id ?? undefined,
   date: row.date,
   serve0: row.serve_0 ?? 0,
   serve1: row.serve_1 ?? 0,
@@ -940,7 +945,8 @@ const scoutingRowToLog = (row: ScoutingLogRow): ScoutingLog => ({
 
 export async function getScoutingLogByDate(
   classId: string,
-  date: string
+  date: string,
+  mode: "treino" | "jogo" = "treino"
 ): Promise<ScoutingLog | null> {
   try {
     const rows = await supabaseGet<ScoutingLogRow[]>(
@@ -948,6 +954,8 @@ export async function getScoutingLogByDate(
         encodeURIComponent(classId) +
         "&date=eq." +
         encodeURIComponent(date) +
+        "&mode=eq." +
+        encodeURIComponent(mode) +
         "&limit=1"
     );
     const row = rows[0];
@@ -982,6 +990,7 @@ export async function saveScoutingLog(
   const allowQueue = options?.allowQueue !== false;
   try {
     const now = new Date().toISOString();
+    const mode = log.mode === "jogo" ? "jogo" : "treino";
     const clientId = buildScoutingLogClientId(log);
     const logId = log.id?.trim() || clientId;
     const payload = {
@@ -989,6 +998,7 @@ export async function saveScoutingLog(
       client_id: clientId,
       classid: log.classId,
       unit: log.unit ?? null,
+      mode,
       date: log.date,
       serve_0: log.serve0,
       serve_1: log.serve1,
@@ -1006,15 +1016,16 @@ export async function saveScoutingLog(
       updatedat: now,
     };
 
-    await supabasePost(
-      "/scouting_logs?on_conflict=client_id",
-      [payload],
-      { Prefer: "resolution=merge-duplicates" }
-    );
+      await supabasePost(
+        "/scouting_logs?on_conflict=id",
+        [payload],
+        { Prefer: "resolution=merge-duplicates" }
+      );
     return {
       ...log,
       id: logId,
       clientId,
+      mode,
       createdAt: payload.createdat,
       updatedAt: now,
     };

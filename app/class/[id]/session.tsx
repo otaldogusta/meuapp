@@ -75,6 +75,7 @@ export default function SessionScreen() {
   const [scoutingCounts, setScoutingCounts] = useState(createEmptyCounts());
   const [scoutingBaseline, setScoutingBaseline] = useState(createEmptyCounts());
   const [scoutingSaving, setScoutingSaving] = useState(false);
+  const [scoutingMode, setScoutingMode] = useState<"treino" | "jogo">("treino");
   const [studentsCount, setStudentsCount] = useState(0);
   const [didAutoReport, setDidAutoReport] = useState(false);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
@@ -103,7 +104,6 @@ export default function SessionScreen() {
     width: number;
     height: number;
   } | null>(null);
-  const [reportLoaded, setReportLoaded] = useState(false);
   const [reportBaseline, setReportBaseline] = useState({
     PSE: 0,
     technique: "nenhum" as "boa" | "ok" | "ruim" | "nenhum",
@@ -147,7 +147,6 @@ export default function SessionScreen() {
   }, [sessionDate]);
 
   useEffect(() => {
-    setReportLoaded(false);
     setReportBaseline({
       PSE: 0,
       technique: "nenhum",
@@ -225,7 +224,7 @@ export default function SessionScreen() {
         const log = await getSessionLogByDate(id, sessionDate);
         if (alive) {
           setSessionLog(log);
-          if (log && !reportLoaded) {
+          if (log) {
             setPSE(typeof log.PSE === "number" ? log.PSE : 0);
             setTechnique(
               (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum"
@@ -250,10 +249,9 @@ export default function SessionScreen() {
                   : "",
               photos: log.photos ?? "",
             });
-            setReportLoaded(true);
           }
         }
-        const scouting = await getScoutingLogByDate(id, sessionDate);
+        const scouting = await getScoutingLogByDate(id, sessionDate, scoutingMode);
         if (alive) {
           const counts = scouting ? countsFromLog(scouting) : createEmptyCounts();
           setScoutingLog(scouting);
@@ -265,7 +263,7 @@ export default function SessionScreen() {
     return () => {
       alive = false;
     };
-  }, [id, sessionDate, reportLoaded]);
+  }, [id, sessionDate, scoutingMode]);
 
   useEffect(() => {
     let alive = true;
@@ -399,7 +397,6 @@ export default function SessionScreen() {
       photos,
       createdAt,
     });
-    setReportLoaded(true);
     return dateValue ?? new Date().toISOString().slice(0, 10);
   };
 
@@ -654,10 +651,14 @@ export default function SessionScreen() {
           id: "scout_" + Date.now(),
           classId: cls.id,
           unit: cls.unit,
+          mode: scoutingMode,
           date: sessionDate,
           createdAt: now,
         };
-      const payload = buildLogFromCounts(base, scoutingCounts);
+      const payload = {
+        ...buildLogFromCounts(base, scoutingCounts),
+        mode: scoutingMode,
+      };
       const saved = await saveScoutingLog(payload);
       setScoutingLog(saved);
       setScoutingBaseline(countsFromLog(saved));
@@ -1037,6 +1038,35 @@ export default function SessionScreen() {
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               Toque para somar, segure para remover.
             </Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+              {(["treino", "jogo"] as const).map((mode) => {
+                const isActive = scoutingMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    onPress={() => setScoutingMode(mode)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: isActive ? colors.primaryBg : colors.border,
+                      backgroundColor: isActive ? colors.primaryBg : colors.secondaryBg,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: isActive ? colors.primaryText : colors.text,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {mode === "treino" ? "Treino" : "Jogo"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               {scoutingInitiationNote}
             </Text>
@@ -1091,7 +1121,7 @@ export default function SessionScreen() {
                       {skill.label}
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {metrics.total} acoes • media {metrics.avg.toFixed(2)}
+                      {metrics.total} acoes | media {metrics.avg.toFixed(2)}
                     </Text>
                   </View>
                   <View style={{ flexDirection: "row", gap: 8 }}>
@@ -1107,6 +1137,12 @@ export default function SessionScreen() {
                           key={score}
                           onPress={() => updateScoutingCount(skill.id, score, 1)}
                           onLongPress={() => updateScoutingCount(skill.id, score, -1)}
+                          onContextMenu={(event) => {
+                            if (event && typeof (event as { preventDefault?: () => void }).preventDefault === "function") {
+                              (event as { preventDefault: () => void }).preventDefault();
+                            }
+                            updateScoutingCount(skill.id, score, -1);
+                          }}
                           delayLongPress={200}
                           style={{
                             flex: 1,
