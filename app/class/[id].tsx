@@ -571,9 +571,23 @@ export default function ClassDetails() {
           </Text>
           {latestScouting && scoutingCounts ? (
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {formatShortDate(latestScouting.date)}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {formatShortDate(latestScouting.date)}
+                </Text>
+                <View
+                  style={{
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                    {latestScouting.mode === "jogo" ? "Jogo" : "Treino"}
+                  </Text>
+                </View>
+              </View>
               <View style={{ gap: 6 }}>
                 {scoutingSkills.map((skill) => {
                   const metrics = getSkillMetrics(scoutingCounts[skill.id]);
@@ -584,7 +598,7 @@ export default function ClassDetails() {
                         {skill.label}
                       </Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {metrics.total} acoes • media {metrics.avg.toFixed(2)} • boas {goodPct}%
+                        {metrics.total} acoes | media {metrics.avg.toFixed(2)} | boas {goodPct}%
                       </Text>
                     </View>
                   );
