@@ -60,10 +60,11 @@ const sessionTabs = [
 type SessionTabId = (typeof sessionTabs)[number]["id"];
 
 export default function SessionScreen() {
-  const { id, date, autoReport } = useLocalSearchParams<{
+  const { id, date, autoReport, tab } = useLocalSearchParams<{
     id: string;
     date?: string;
     autoReport?: string;
+    tab?: string;
   }>();
   const router = useRouter();
   const { colors, mode } = useAppTheme();
@@ -677,6 +678,13 @@ export default function SessionScreen() {
     setDidAutoReport(true);
     void handleExportReportPdf();
   }, [autoReport, cls, didAutoReport, sessionLog, studentsCount]);
+
+  useEffect(() => {
+    if (!tab) return;
+    if (tab === "treino" || tab === "relatorio" || tab === "scouting") {
+      setSessionTab(tab);
+    }
+  }, [tab]);
 
   if (!cls) return null;
 

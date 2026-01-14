@@ -44,6 +44,7 @@ type WeekPlan = {
   notes: string[];
   jumpTarget: string;
   PSETarget: string;
+  source: "AUTO" | "MANUAL";
 };
 
 const ageBands = ["06-08", "09-11", "12-14"] as const;
@@ -739,6 +740,7 @@ export default function PeriodizationScreen() {
           notes: [plan.constraints, plan.warmupProfile].filter(Boolean),
           jumpTarget: plan.jumpTarget || getJumpTarget(selectedClass?.mvLevel, ageBand),
           PSETarget: plan.rpeTarget || getPSETarget(plan.phase),
+          source: plan.source || "AUTO",
         };
       });
     }
@@ -751,6 +753,7 @@ export default function PeriodizationScreen() {
         title: getPhaseForWeek(i + 1, length),
         jumpTarget: getJumpTarget(selectedClass?.mvLevel, ageBand),
         PSETarget: getPSETarget(getPhaseForWeek(i + 1, length)),
+        source: "AUTO",
       });
     }
     return weeks;
@@ -2130,6 +2133,10 @@ export default function PeriodizationScreen() {
                   </Text>
                   {(() => {
                     const palette = getVolumePalette(week.volume, colors);
+                    const sourcePalette =
+                      week.source === "MANUAL"
+                        ? { bg: colors.warningBg, text: colors.warningText }
+                        : { bg: colors.secondaryBg, text: colors.text };
                     return (
                       <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
                         <View
@@ -2142,6 +2149,26 @@ export default function PeriodizationScreen() {
                         >
                           <Text style={{ color: palette.text, fontSize: 11 }}>
                             {week.volume}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            paddingVertical: 2,
+                            paddingHorizontal: 8,
+                            borderRadius: 999,
+                            backgroundColor: sourcePalette.bg,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: sourcePalette.text,
+                              fontSize: 11,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {week.source}
                           </Text>
                         </View>
                         <View
@@ -2498,19 +2525,39 @@ export default function PeriodizationScreen() {
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
               {(() => {
                 const palette = getVolumePalette(activeWeek.volume, colors);
+                const sourcePalette =
+                  activeWeek.source === "MANUAL"
+                    ? { bg: colors.warningBg, text: colors.warningText }
+                    : { bg: colors.secondaryBg, text: colors.text };
                 return (
-                  <View
-                    style={{
-                      paddingVertical: 3,
-                      paddingHorizontal: 8,
-                      borderRadius: 999,
-                      backgroundColor: palette.bg,
-                    }}
-                  >
-                    <Text style={{ color: palette.text, fontSize: 11 }}>
-                      {"Volume: " + activeWeek.volume}
-                    </Text>
-                  </View>
+                  <>
+                    <View
+                      style={{
+                        paddingVertical: 3,
+                        paddingHorizontal: 8,
+                        borderRadius: 999,
+                        backgroundColor: palette.bg,
+                      }}
+                    >
+                      <Text style={{ color: palette.text, fontSize: 11 }}>
+                        {"Volume: " + activeWeek.volume}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        paddingVertical: 3,
+                        paddingHorizontal: 8,
+                        borderRadius: 999,
+                        backgroundColor: sourcePalette.bg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ color: sourcePalette.text, fontSize: 11, fontWeight: "700" }}>
+                        {activeWeek.source}
+                      </Text>
+                    </View>
+                  </>
                 );
               })()}
               <View

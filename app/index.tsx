@@ -154,6 +154,24 @@ export default function Home() {
     return { hour: Number(match[1]), minute: Number(match[2]) };
   };
 
+  const formatRange = (hour: number, minute: number, durationMinutes: number) => {
+    const start = String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+    const endTotal = hour * 60 + minute + durationMinutes;
+    const endHour = Math.floor(endTotal / 60) % 24;
+    const endMinute = endTotal % 60;
+    const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
+    return start + " - " + end;
+  };
+
+  const formatShortDate = (iso: string) => {
+    const parsed = new Date(iso + "T00:00:00");
+    if (Number.isNaN(parsed.getTime())) return iso;
+    return parsed.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+  };
+
   const nearestAttendanceTarget = useMemo(() => {
     if (!classes.length) return null;
     const now = new Date();
@@ -201,6 +219,20 @@ export default function Home() {
     if (!nearestAttendanceTarget) return null;
     return classes.find((item) => item.id === nearestAttendanceTarget.classId) ?? null;
   }, [classes, nearestAttendanceTarget]);
+
+  const nearestSummary = useMemo(() => {
+    if (!nearestClass || !nearestAttendanceTarget) return null;
+    const time = parseTime(nearestClass.startTime);
+    const timeLabel = time
+      ? formatRange(time.hour, time.minute, nearestClass.durationMinutes ?? 60)
+      : nearestClass.startTime;
+    return {
+      unit: nearestClass.unit || "Sem unidade",
+      className: nearestClass.name,
+      dateLabel: formatShortDate(nearestAttendanceTarget.date),
+      timeLabel,
+    };
+  }, [nearestAttendanceTarget, nearestClass]);
 
   const showToast = (message: string, type: "info" | "success" | "error") => {
     setToast({ message, type });
@@ -329,6 +361,23 @@ export default function Home() {
           <Text style={{ color: colors.primaryText, marginTop: 6, opacity: 0.85 }}>
             Turmas, treino e chamada em um lugar
           </Text>
+          {nearestSummary ? (
+            <View style={{ marginTop: 10, gap: 4 }}>
+              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                Proxima aula
+              </Text>
+              <Text style={{ color: colors.primaryText, opacity: 0.9 }}>
+                {nearestSummary.className} • {nearestSummary.unit}
+              </Text>
+              <Text style={{ color: colors.primaryText, opacity: 0.8 }}>
+                {nearestSummary.dateLabel} • {nearestSummary.timeLabel}
+              </Text>
+            </View>
+          ) : (
+            <Text style={{ color: colors.primaryText, marginTop: 8, opacity: 0.85 }}>
+              Nenhuma aula encontrada nos proximos dias.
+            </Text>
+          )}
           <View style={{ marginTop: 12, gap: 8 }}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               <Pressable
@@ -367,6 +416,7 @@ export default function Home() {
                     params: {
                       id: nearestAttendanceTarget.classId,
                       date: nearestAttendanceTarget.date,
+                      tab: "treino",
                     },
                   });
                 }}
@@ -385,6 +435,66 @@ export default function Home() {
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
                   Abrir plano
+                </Text>
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              <Pressable
+                onPress={() => {
+                  if (!nearestAttendanceTarget) return;
+                  router.push({
+                    pathname: "/class/[id]/session",
+                    params: {
+                      id: nearestAttendanceTarget.classId,
+                      date: nearestAttendanceTarget.date,
+                      tab: "relatorio",
+                    },
+                  });
+                }}
+                disabled={!nearestAttendanceTarget}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: nearestAttendanceTarget
+                    ? colors.secondaryBg
+                    : colors.primaryDisabledBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Fazer relatorio
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (!nearestAttendanceTarget) return;
+                  router.push({
+                    pathname: "/class/[id]/session",
+                    params: {
+                      id: nearestAttendanceTarget.classId,
+                      date: nearestAttendanceTarget.date,
+                      tab: "scouting",
+                    },
+                  });
+                }}
+                disabled={!nearestAttendanceTarget}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: nearestAttendanceTarget
+                    ? colors.secondaryBg
+                    : colors.primaryDisabledBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Scouting
                 </Text>
               </Pressable>
             </View>

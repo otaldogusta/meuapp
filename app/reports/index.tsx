@@ -10,9 +10,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getAttendanceAll,
   getClasses,
+  getSessionLogsByRange,
   getStudents,
 } from "../../src/db/seed";
-import type { AttendanceRecord, ClassGroup, Student } from "../../src/core/models";
+import type { AttendanceRecord, ClassGroup, SessionLog, Student } from "../../src/core/models";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 
@@ -47,6 +48,7 @@ export default function ReportsScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
   const [month, setMonth] = useState(new Date());
   const [classId, setClassId] = useState<string>("all");
 
@@ -67,6 +69,23 @@ export default function ReportsScreen() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const start = new Date(month.getFullYear(), month.getMonth(), 1);
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+    (async () => {
+      const logs = await getSessionLogsByRange(
+        start.toISOString(),
+        end.toISOString()
+      );
+      if (!alive) return;
+      setSessionLogs(logs);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [month]);
 
   const monthKey = useMemo(() => formatMonthKey(month), [month]);
 
@@ -107,6 +126,15 @@ export default function ReportsScreen() {
     const percent = total ? Math.round((present / total) * 100) : 0;
     return { total, present, absent, percent };
   }, [monthAttendance]);
+
+  const pseSummary = useMemo(() => {
+    const valid = sessionLogs.filter((log) => typeof log.PSE === "number");
+    if (!valid.length) {
+      return { avg: null, total: 0 };
+    }
+    const sum = valid.reduce((acc, log) => acc + (log.PSE ?? 0), 0);
+    return { avg: sum / valid.length, total: valid.length };
+  }, [sessionLogs]);
 
   const studentsForClass = useMemo(() => {
     if (classId === "all") return students;
@@ -237,6 +265,11 @@ export default function ReportsScreen() {
     { label: "Faltas", value: String(summary.absent), color: colors.dangerSolidBg },
     { label: "Aulas", value: String(summary.total), color: colors.infoBg },
     { label: "Turmas", value: String(classes.length), color: colors.secondaryBg },
+    {
+      label: "PSE medio",
+      value: pseSummary.avg === null ? "--" : pseSummary.avg.toFixed(1),
+      color: colors.warningBg,
+    },
   ];
 
   return (
@@ -544,7 +577,7 @@ export default function ReportsScreen() {
                   />
                 </View>
                 <Text style={{ color: colors.muted }}>
-                  Presencas: {row.present} • Total: {row.total}
+                  Presencas: {row.present} | Total: {row.total}
                 </Text>
               </View>
             ))}
@@ -642,7 +675,7 @@ export default function ReportsScreen() {
                   />
                 </View>
                 <Text style={{ color: colors.muted }}>
-                  Presencas: {row.present} • Total: {row.total}
+                  Presencas: {row.present} | Total: {row.total}
                 </Text>
               </View>
             ))}
