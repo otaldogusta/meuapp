@@ -384,34 +384,6 @@ export default function Home() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Registrar sessao
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (!nearestClass) return;
-                  router.push({
-                    pathname: "/periodization",
-                    params: {
-                      classId: nearestClass.id,
-                      unit: nearestClass.unit,
-                    },
-                  });
-                }}
-                disabled={!nearestClass}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 14,
-                  borderRadius: 999,
-                  backgroundColor: nearestClass
-                    ? colors.secondaryBg
-                    : colors.primaryDisabledBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: nearestClass ? 1 : 0.7,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
                   Abrir plano
                 </Text>
               </Pressable>
