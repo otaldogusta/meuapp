@@ -27,6 +27,7 @@ import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { getUnitPalette } from "../../src/ui/unit-colors";
+import { normalizeUnitKey } from "../../src/core/unit-key";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { updateClass } from "../../src/db/seed";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -250,13 +251,23 @@ export default function ClassesScreen() {
   const { animatedStyle: goalPickerAnimStyle, isVisible: showGoalPickerContent } =
     useCollapsibleAnimation(showGoalPicker);
 
+  const unitLabel = useCallback(
+    (value?: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
+    []
+  );
+  const unitKey = useCallback(
+    (value?: string) => normalizeUnitKey(unitLabel(value)),
+    [unitLabel]
+  );
   const units = useMemo(() => {
-    const set = new Set<string>();
+    const map = new Map<string, string>();
     classes.forEach((item) => {
-      if (item.unit) set.add(item.unit);
+      const label = unitLabel(item.unit);
+      const key = unitKey(label);
+      if (!map.has(key)) map.set(key, label);
     });
-    return ["Todas", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [classes]);
+    return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
+  }, [classes, unitKey, unitLabel]);
   const [unitFilter, setUnitFilter] = useState("Todas");
   const getChipStyle = (
     active: boolean,
@@ -295,13 +306,14 @@ export default function ClassesScreen() {
 
   const filteredClasses = useMemo(() => {
     if (unitFilter === "Todas") return classes;
-    return classes.filter((item) => item.unit === unitFilter);
-  }, [classes, unitFilter]);
+    const filterKey = normalizeUnitKey(unitFilter);
+    return classes.filter((item) => unitKey(item.unit) === filterKey);
+  }, [classes, unitFilter, unitKey]);
 
   const goalSuggestions = useMemo(() => {
-    const key = newUnit.trim();
+    const key = normalizeUnitKey(newUnit);
     const matches = classes.filter((item) => {
-      if (key) return item.unit === key;
+      if (key) return unitKey(item.unit) === key;
       if (newAgeBand) return item.ageBand === newAgeBand;
       return false;
     });
@@ -320,9 +332,9 @@ export default function ClassesScreen() {
     return list.filter((item, index) => list.indexOf(item) === index);
   }, [goalSuggestions, goals]);
   const editGoalSuggestions = useMemo(() => {
-    const key = editUnit.trim();
+    const key = normalizeUnitKey(editUnit);
     const matches = classes.filter((item) => {
-      if (key) return item.unit === key;
+      if (key) return unitKey(item.unit) === key;
       if (editAgeBand) return item.ageBand === editAgeBand;
       return false;
     });
@@ -341,7 +353,7 @@ export default function ClassesScreen() {
     if (!item) return "voleibol";
     if (item.modality) return item.modality;
     const goal = (item.goal ?? "").toLowerCase();
-    const unit = (item.unit ?? "").toLowerCase();
+    const unit = normalizeUnitKey(item.unit);
     if (goal.includes("fundamentos")) {
       if (unit.includes("esperanca") || unit.includes("pinhais")) {
         return "voleibol";
@@ -405,7 +417,7 @@ export default function ClassesScreen() {
       const aEnd = aStart + (a.durationMinutes || 60);
       for (let j = i + 1; j < classes.length; j += 1) {
         const b = classes[j];
-        if ((a.unit || "Sem unidade") !== (b.unit || "Sem unidade")) continue;
+        if (unitKey(a.unit) !== unitKey(b.unit)) continue;
         const bStart = toMinutes(b.startTime || "");
         if (bStart === null) continue;
         const bEnd = bStart + (b.durationMinutes || 60);
@@ -428,12 +440,15 @@ export default function ClassesScreen() {
 
   const grouped = useMemo(() => {
     const map: Record<string, ClassGroup[]> = {};
+    const labels = new Map<string, string>();
     filteredClasses.forEach((item) => {
-      const key = item.unit || "Sem unidade";
+      const label = unitLabel(item.unit);
+      const key = unitKey(label);
       if (!map[key]) map[key] = [];
       map[key].push(item);
+      if (!labels.has(key)) labels.set(key, label);
     });
-    const sortedEntries = Object.entries(map).map(([unit, items]) => {
+    const sortedEntries = Object.entries(map).map(([unitKeyValue, items]) => {
       const sortedItems = [...items].sort((a, b) => {
         const aDay = a.daysOfWeek.length ? Math.min(...a.daysOfWeek) : 7;
         const bDay = b.daysOfWeek.length ? Math.min(...b.daysOfWeek) : 7;
@@ -443,10 +458,10 @@ export default function ClassesScreen() {
         if (aStart !== bStart) return aStart - bStart;
         return a.name.localeCompare(b.name);
       });
-      return [unit, sortedItems] as [string, ClassGroup[]];
+      return [labels.get(unitKeyValue) ?? "Sem unidade", sortedItems] as [string, ClassGroup[]];
     });
     return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredClasses]);
+  }, [filteredClasses, unitKey, unitLabel]);
 
   const loadClasses = useCallback(async (alive?: { current: boolean }) => {
     const data = await getClasses();

@@ -13,6 +13,7 @@ import {
 } from "../../src/db/seed";
 import type { ClassGroup, TrainingPlan } from "../../src/core/models";
 import { normalizeAgeBand } from "../../src/core/age-band";
+import { normalizeUnitKey } from "../../src/core/unit-key";
 
 type CsvRow = Record<string, string>;
 
@@ -150,9 +151,10 @@ const matchClass = (
   let candidates = classes;
 
   const resolvedUnit = titleInfo.unit || unitHint;
-  if (resolvedUnit) {
+  if (normalizeUnitKey(resolvedUnit)) {
+    const resolvedKey = normalizeUnitKey(resolvedUnit);
     candidates = candidates.filter(
-      (cls) => (cls.unit || "").toLowerCase() === resolvedUnit.toLowerCase()
+      (cls) => normalizeUnitKey(cls.unit) === resolvedKey
     );
   }
   if (titleInfo.startTime) {
@@ -198,6 +200,7 @@ export default function ImportTrainingCsvScreen() {
   const { showSaveToast } = useSaveToast();
   const [csvText, setCsvText] = useState("");
   const [unitHint, setUnitHint] = useState("");
+  const [allowPartial, setAllowPartial] = useState(false);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -230,7 +233,7 @@ export default function ImportTrainingCsvScreen() {
         errors.push("Titulo ausente");
       }
       const info = extractTitleInfo(row.title || "");
-      if (!info.unit && !unitHint.trim()) {
+      if (!normalizeUnitKey(info.unit) && !normalizeUnitKey(unitHint)) {
         errors.push("Unidade nao encontrada no titulo");
       }
       if (!info.timeRange) {
@@ -260,17 +263,25 @@ export default function ImportTrainingCsvScreen() {
 
   const runImport = async () => {
     if (!preview.length) return;
-    const invalid = preview.filter((item) => item.errors.length > 0);
-    if (invalid.length) return;
+    const rowsToImport = allowPartial
+      ? preview.filter((item) => item.errors.length === 0)
+      : preview;
+    if (!rowsToImport.length || (!allowPartial && previewStats.errors > 0)) return;
     setLoading(true);
     try {
-      for (const item of preview) {
+      for (const item of rowsToImport) {
         if (!item.classId) continue;
         await deleteTrainingPlansByClassAndDate(item.classId, item.row.date);
         const plan = buildPlanRow(item.row, item.classId);
         await saveTrainingPlan(plan);
       }
-      showSaveToast("Planejamento importado.");
+      if (allowPartial && previewStats.errors > 0) {
+        showSaveToast(
+          `Importado ${rowsToImport.length} linhas. Ignoradas ${previewStats.errors}.`
+        );
+      } else {
+        showSaveToast("Planejamento importado.");
+      }
       router.back();
     } finally {
       setLoading(false);
@@ -336,8 +347,32 @@ export default function ImportTrainingCsvScreen() {
             backgroundColor: colors.primaryBg,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            Pre-visualizar
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+              Pre-visualizar
+            </Text>
+          </Pressable>
+
+        <Pressable
+          onPress={() => setAllowPartial((prev) => !prev)}
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: allowPartial ? colors.primaryBg : colors.border,
+            backgroundColor: allowPartial ? colors.primaryBg : colors.card,
+          }}
+        >
+          <Text
+            style={{
+              color: allowPartial ? colors.primaryText : colors.text,
+              fontWeight: "700",
+            }}
+          >
+            Importar apenas linhas validas
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+            Ignora linhas com erro e salva o restante.
           </Text>
         </Pressable>
 
@@ -389,13 +424,19 @@ export default function ImportTrainingCsvScreen() {
 
         <Pressable
           onPress={runImport}
-          disabled={!hasPreview || previewStats.errors > 0 || loading}
+          disabled={
+            !hasPreview ||
+            loading ||
+            (allowPartial ? previewStats.ok === 0 : previewStats.errors > 0)
+          }
           style={{
             paddingVertical: 12,
             borderRadius: 12,
             alignItems: "center",
             backgroundColor:
-              !hasPreview || previewStats.errors > 0 || loading
+              !hasPreview ||
+              loading ||
+              (allowPartial ? previewStats.ok === 0 : previewStats.errors > 0)
                 ? colors.primaryDisabledBg
                 : colors.primaryBg,
           }}

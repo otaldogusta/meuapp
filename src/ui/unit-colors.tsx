@@ -1,4 +1,5 @@
 import type { ThemeColors } from "./app-theme";
+import { normalizeUnitKey } from "../core/unit-key";
 
 export type UnitPalette = {
   bg: string;
@@ -15,7 +16,7 @@ export const toRgba = (hex: string, alpha: number) => {
 };
 
 export const getUnitPalette = (unit: string, colors: ThemeColors): UnitPalette => {
-  const key = unit.toLowerCase();
+  const key = normalizeUnitKey(unit);
   if (key.includes("esperanca")) {
     return { bg: colors.successBg, text: colors.successText };
   }

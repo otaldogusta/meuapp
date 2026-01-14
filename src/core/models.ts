@@ -42,6 +42,8 @@ export type SessionPlan = {
 };
 
 export type SessionLog = {
+  id?: string;
+  clientId?: string;
   classId: string;
   PSE: number;
   technique: "boa" | "ok" | "ruim";

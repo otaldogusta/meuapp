@@ -39,12 +39,16 @@ const summarizeResponse = (text: string) => {
 const supabaseRequest = async (
   method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
-  body?: unknown
+  body?: unknown,
+  extraHeaders?: Record<string, string>
 ) => {
   const startedAt = Date.now();
   const res = await fetch(REST_BASE + path, {
     method,
-    headers: await headers(),
+    headers: {
+      ...(await headers()),
+      ...(extraHeaders ?? {}),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const ms = Date.now() - startedAt;
@@ -89,8 +93,12 @@ const supabaseGet = async <T>(path: string) => {
   return (text ? JSON.parse(text) : []) as T;
 };
 
-const supabasePost = async <T>(path: string, body: unknown) => {
-  const text = await supabaseRequest("POST", path, body);
+const supabasePost = async <T>(
+  path: string,
+  body: unknown,
+  extraHeaders?: Record<string, string>
+) => {
+  const text = await supabaseRequest("POST", path, body, extraHeaders);
   if (!text) return [] as T;
   return JSON.parse(text) as T;
 };
@@ -157,6 +165,15 @@ const readWriteQueue = async () => {
 
 const writeQueue = async (queue: PendingWrite[]) => {
   await writeCache(WRITE_QUEUE_KEY, queue);
+};
+
+const buildSessionLogClientId = (log: SessionLog) => {
+  const existing = (log.clientId || log.id || "").trim();
+  if (existing) return existing;
+  const timestamp = Number.isFinite(Date.parse(log.createdAt))
+    ? Date.parse(log.createdAt)
+    : Date.now();
+  return `session_${log.classId}_${timestamp}`;
 };
 
 const enqueueWrite = async (write: PendingWrite) => {
@@ -1018,6 +1035,8 @@ export async function saveSessionLog(
   options?: { allowQueue?: boolean }
 ) {
   const allowQueue = options?.allowQueue !== false;
+  const clientId = buildSessionLogClientId(log);
+  const logId = log.id?.trim() || clientId;
   const pseValue =
     typeof (log as { PSE?: number }).PSE === "number"
       ? (log as { PSE?: number }).PSE
@@ -1033,27 +1052,32 @@ export async function saveSessionLog(
       : null;
 
   try {
-    await supabasePost("/session_logs", [
-      {
-        id: "log_" + Date.now(),
-        classid: log.classId,
-        rpe: pseValue,
-        technique: log.technique,
-        attendance: log.attendance,
-        activity,
-        conclusion,
-        participants_count: participantsCount,
-        photos,
-        pain_score: log.painScore ?? null,
-        createdat: log.createdAt,
-      },
-    ]);
+    await supabasePost(
+      "/session_logs?on_conflict=client_id",
+      [
+        {
+          id: logId,
+          client_id: clientId,
+          classid: log.classId,
+          rpe: pseValue,
+          technique: log.technique,
+          attendance: log.attendance,
+          activity,
+          conclusion,
+          participants_count: participantsCount,
+          photos,
+          pain_score: log.painScore ?? null,
+          createdat: log.createdAt,
+        },
+      ],
+      { Prefer: "resolution=merge-duplicates" }
+    );
   } catch (error) {
     if (allowQueue && isNetworkError(error)) {
       await enqueueWrite({
         id: "queue_log_" + Date.now(),
         kind: "session_log",
-        payload: log,
+        payload: { ...log, id: logId, clientId },
         createdAt: new Date().toISOString(),
       });
       return;

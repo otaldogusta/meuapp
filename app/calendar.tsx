@@ -25,6 +25,7 @@ import { usePersistedState } from "../src/ui/use-persisted-state";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
+import { normalizeUnitKey } from "../src/core/unit-key";
 import { useSaveToast } from "../src/ui/save-toast";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 
@@ -150,6 +151,10 @@ export default function CalendarScreen() {
   const unitLabel = useCallback((value?: string) => {
     return value && value.trim() ? value.trim() : "Sem unidade";
   }, []);
+  const unitKey = useCallback(
+    (value?: string) => normalizeUnitKey(unitLabel(value)),
+    [unitLabel]
+  );
   const classById = useMemo(() => {
     const map: Record<string, ClassGroup> = {};
     classes.forEach((item) => {
@@ -257,10 +262,10 @@ export default function CalendarScreen() {
     return "Madrugada";
   };
   const filteredClasses = useMemo(() => {
-    return unitFilter === "Todas"
-      ? classes
-      : classes.filter((cls) => unitLabel(cls.unit) === unitFilter);
-  }, [classes, unitFilter, unitLabel]);
+    if (unitFilter === "Todas") return classes;
+    const filterKey = normalizeUnitKey(unitFilter);
+    return classes.filter((cls) => unitKey(cls.unit) === filterKey);
+  }, [classes, unitFilter, unitKey]);
 
   const scheduleDays = useMemo(() => {
     const unique = new Set<number>();
@@ -283,24 +288,23 @@ export default function CalendarScreen() {
   const applyFilterUnit = selectedApplyClass
     ? unitLabel(selectedApplyClass.unit)
     : "";
+  const applyFilterUnitKey = normalizeUnitKey(applyFilterUnit);
   const applyFilterAge = selectedApplyClass?.ageBand ?? "";
   const filteredApplyPlans = useMemo(() => {
     if (!selectedApplyClass) return sortedPlans;
     return sortedPlans.filter((plan) => {
       const planClass = classById[plan.classId];
       if (!planClass) return false;
-      return (
-        unitLabel(planClass.unit) === applyFilterUnit &&
-        planClass.ageBand === applyFilterAge
-      );
+      return unitKey(planClass.unit) === applyFilterUnitKey &&
+        planClass.ageBand === applyFilterAge;
     });
   }, [
     sortedPlans,
     classById,
     selectedApplyClass,
-    applyFilterUnit,
+    applyFilterUnitKey,
     applyFilterAge,
-    unitLabel,
+    unitKey,
   ]);
 
   const closeApplyPicker = () => {
@@ -356,12 +360,14 @@ export default function CalendarScreen() {
   };
 
   const unitOptions = useMemo(() => {
-    const units = new Set<string>();
+    const map = new Map<string, string>();
     classes.forEach((cls) => {
-      units.add(cls.unit || "Sem unidade");
+      const label = unitLabel(cls.unit);
+      const key = unitKey(label);
+      if (!map.has(key)) map.set(key, label);
     });
-    return ["Todas", ...Array.from(units).sort((a, b) => a.localeCompare(b))];
-  }, [classes]);
+    return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
+  }, [classes, unitKey, unitLabel]);
   const baseHour = 14;
 
     return (
@@ -509,27 +515,33 @@ export default function CalendarScreen() {
             const filtered = filteredClasses.filter((cls) =>
               cls.daysOfWeek.includes(day)
             );
-            const groupedByUnit = filtered.reduce<Record<string, ClassGroup[]>>(
-              (acc, cls) => {
-                const key = unitLabel(cls.unit);
-                if (!acc[key]) acc[key] = [];
-                acc[key].push(cls);
+            const groupedByUnit = filtered.reduce<
+              Record<string, { label: string; items: ClassGroup[] }>
+            >((acc, cls) => {
+              const label = unitLabel(cls.unit);
+              const key = unitKey(label);
+              if (!acc[key]) acc[key] = { label, items: [] };
+              acc[key].items.push(cls);
               return acc;
-            },
-            {}
-          );
-          const unitGroups = Object.entries(groupedByUnit)
-            .sort((a, b) => a[0].localeCompare(b[0]))
-            .map(([unit, items]) => [unit, items.sort(sortByTime)] as const);
-          const renderUnitGroups = (grouped: readonly [string, ClassGroup[]][]) => {
+            }, {});
+            const unitGroups = Object.entries(groupedByUnit)
+              .map(([key, entry]) => ({
+                key,
+                label: entry.label,
+                items: entry.items.sort(sortByTime),
+              }))
+              .sort((a, b) => a.label.localeCompare(b.label));
+          const renderUnitGroups = (
+            grouped: readonly { key: string; label: string; items: ClassGroup[] }[]
+          ) => {
             if (!grouped.length) {
               return <Text style={{ color: colors.muted }}>Sem turmas nesse dia.</Text>;
             }
 
-            return grouped.map(([unit, items]) => {
-              const unitKey = `${dayKey}-${unit}`;
+            return grouped.map(({ key, label, items }) => {
+              const unitKey = `${dayKey}-${key}`;
               const isUnitExpanded = expandedUnitGroups[unitKey] ?? true;
-              const palette = getUnitPalette(unit, colors);
+              const palette = getUnitPalette(label, colors);
               const unitBorder = palette.bg;
               const unitBg =
                 mode === "dark"
@@ -554,7 +566,7 @@ export default function CalendarScreen() {
 
               return (
                 <View
-                  key={unit}
+                  key={key}
                   style={{
                     borderRadius: 14,
                     borderWidth: 0,
@@ -584,8 +596,8 @@ export default function CalendarScreen() {
                   >
                     <View style={{ flex: 1, gap: 4 }}>
                       <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                        {unit}
-                      </Text>
+                      {label}
+                    </Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>{countLabel}</Text>
                     </View>
                     <MaterialCommunityIcons

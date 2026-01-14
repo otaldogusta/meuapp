@@ -29,6 +29,7 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { normalizeAgeBand, parseAgeBandRange } from "../../src/core/age-band";
+import { normalizeUnitKey } from "../../src/core/unit-key";
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 import { periodizationHtml } from "../../src/pdf/templates/periodization";
 import { PeriodizationDocument } from "../../src/pdf/periodization-document";
@@ -564,18 +565,21 @@ export default function PeriodizationScreen() {
   }, [classes, didApplyParams, initialClassId, initialUnit]);
 
   const unitOptions = useMemo(() => {
-    const set = new Set<string>();
+    const map = new Map<string, string>();
     classes.forEach((item) => {
-      if (item.unit) set.add(item.unit);
+      const label = (item.unit ?? "").trim() || "Sem unidade";
+      const key = normalizeUnitKey(label);
+      if (!map.has(key)) map.set(key, label);
     });
-    return ["", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+    return ["", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [classes]);
 
   const hasUnitSelected = selectedUnit.trim() !== "";
 
   const filteredClasses = useMemo(() => {
+    const selectedKey = normalizeUnitKey(selectedUnit);
     const list = hasUnitSelected
-      ? classes.filter((item) => item.unit === selectedUnit)
+      ? classes.filter((item) => normalizeUnitKey(item.unit) === selectedKey)
       : classes;
     return [...list].sort((a, b) => {
       const aRange = parseAgeBandRange(a.ageBand || a.name);
@@ -614,7 +618,10 @@ export default function PeriodizationScreen() {
       setUnitMismatchWarning("");
       return;
     }
-    if (selectedClass && selectedClass.unit !== selectedUnit) {
+    if (
+      selectedClass &&
+      normalizeUnitKey(selectedClass.unit) !== normalizeUnitKey(selectedUnit)
+    ) {
       setSelectedClassId("");
       setUnitMismatchWarning(
         "A turma selecionada pertence a outra unidade. Selecione uma turma desta unidade."
@@ -1114,7 +1121,10 @@ export default function PeriodizationScreen() {
     setSelectedUnit(unit);
     setAllowEmptyClass(false);
     setShowUnitPicker(false);
-    if (selectedClass && selectedClass.unit !== unit) {
+    if (
+      selectedClass &&
+      normalizeUnitKey(selectedClass.unit) !== normalizeUnitKey(unit)
+    ) {
       setSelectedClassId("");
       setUnitMismatchWarning(
         "A turma selecionada pertence a outra unidade. Selecione uma turma desta unidade."
