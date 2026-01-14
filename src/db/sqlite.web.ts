@@ -1,3 +1,5 @@
+import { normalizeAgeBand } from "../core/age-band";
+
 type ClassRow = {
   id: string;
   name: string;
@@ -84,7 +86,7 @@ export const db = {
       const row: ClassRow = {
         id: String(params[0] ?? ""),
         name: String(params[1] ?? ""),
-        ageBand: String(params[2] ?? ""),
+        ageBand: normalizeAgeBand(String(params[2] ?? "")),
         daysPerWeek: Number(params[3] ?? 0),
         goal: String(params[4] ?? ""),
         equipment: String(params[5] ?? ""),

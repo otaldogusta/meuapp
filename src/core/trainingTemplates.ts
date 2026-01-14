@@ -17,7 +17,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   {
     id: "mini-2x2-fundamentos",
     title: "Mini 2x2 - habilidades motoras e toque",
-    ageBands: ["8-9"],
+    ageBands: ["08-09"],
     tags: ["ludico", "fundamentos", "toque", "saque por baixo", "jogo reduzido"],
     warmup: [
       "Jogo ludico de corrida e saltos com bola",
@@ -37,7 +37,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   {
     id: "mini-2x2-saque",
     title: "Mini 2x2 - saque e construcao do jogo",
-    ageBands: ["8-9"],
+    ageBands: ["08-09"],
     tags: ["saque por baixo", "construcao do jogo", "fundamentos"],
     warmup: [
       "Brincadeira de alvo com saque por baixo",
@@ -132,7 +132,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   {
     id: "cmv-6-7-10bal",
     title: "CMV 6-7 - 10-bal e habilidades basicas",
-    ageBands: ["8-9"],
+    ageBands: ["08-09"],
     tags: ["cmv", "10-bal", "ludico", "controle"],
     warmup: [
       "Baltikkertje (pega-pega com bola)",
@@ -151,7 +151,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   {
     id: "cmv-6-7-toque",
     title: "CMV 6-7 - toque e saque por baixo",
-    ageBands: ["8-9"],
+    ageBands: ["08-09"],
     tags: ["cmv", "toque", "saque por baixo", "ludico"],
     warmup: [
       "Bovenhands mikken (toque em alvos)",
@@ -246,7 +246,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   {
     id: "warmup-volleyveilig",
     title: "VolleyVeilig - aquecimento preventivo",
-    ageBands: ["8-9", "10-12", "13-15"],
+    ageBands: ["08-09", "10-12", "13-15"],
     tags: ["aquecimento", "prevencao", "agilidade", "estabilidade"],
     warmup: [
       "Corrida leve com mudanca de direcao",
@@ -266,7 +266,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   {
     id: "mini-games-1x1-2x2",
     title: "Jogos base 1x1 e 2x2",
-    ageBands: ["8-9"],
+    ageBands: ["08-09"],
     tags: ["jogo", "ludico", "controle", "iniciacao"],
     warmup: [
       "Brincadeira de alvo com bola",
@@ -285,7 +285,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   {
     id: "recepcao-basica",
     title: "Recepcao basica e passe",
-    ageBands: ["8-9", "10-12"],
+    ageBands: ["08-09", "10-12"],
     tags: ["recepcao", "passe", "controle"],
     warmup: [
       "Bola alta para agarrar e devolver",
@@ -397,3 +397,4 @@ export const trainingTemplates: TrainingTemplate[] = [
     cooldownTime: "5'",
   },
 ];
+

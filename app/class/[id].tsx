@@ -52,7 +52,7 @@ export default function ClassDetails() {
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
-  const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
+  const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [gender, setGender] = useState<ClassGroup["gender"]>("misto");
   const [startTime, setStartTime] = useState("14:00");
   const [duration, setDuration] = useState("60");
@@ -71,7 +71,16 @@ export default function ClassDetails() {
     isVisible: showDetailsContent,
   } = useCollapsibleAnimation(showDetails);
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
-  const ageBandOptions = ["8-9", "10-12", "13-15", "16-18"];
+  const ageBandOptions = [
+    "06-08",
+    "08-09",
+    "08-11",
+    "09-11",
+    "10-12",
+    "12-14",
+    "13-15",
+    "16-18",
+  ];
   const goals: ClassGroup["goal"][] = [
     "Fundamentos",
     "Forca Geral",
@@ -214,7 +223,7 @@ export default function ClassDetails() {
         setLatestScouting(scouting);
         setName(data?.name ?? "");
         setUnit(data?.unit ?? "");
-        setAgeBand(data?.ageBand ?? "8-9");
+        setAgeBand(data?.ageBand ?? "08-09");
         setGender(data?.gender ?? "misto");
         setStartTime(data?.startTime ?? "14:00");
         setDuration(String(data?.durationMinutes ?? 60));

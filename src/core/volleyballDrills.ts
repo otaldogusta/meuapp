@@ -154,8 +154,8 @@ const shouldUseVolleyball = (cls: ClassGroup) => {
 const resolveMvLevel = (cls: ClassGroup): MVLevel => {
   if (cls.mvLevel && cls.mvLevel.trim()) return cls.mvLevel as MVLevel;
   const band = cls.ageBand;
-  if (band === "6-8" || band === "8-9") return "MV1";
-  if (band === "9-11" || band === "10-12") return "MV2";
+  if (band === "06-08" || band === "08-09" || band === "08-11") return "MV1";
+  if (band === "09-11" || band === "10-12" || band === "12-14") return "MV2";
   return "MV3";
 };
 
@@ -236,3 +236,4 @@ export function pickVolleyballMain(cls: ClassGroup): string[] | null {
 
   return main;
 }
+

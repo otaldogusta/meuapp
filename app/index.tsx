@@ -197,6 +197,11 @@ export default function Home() {
     return candidates[0];
   }, [classes]);
 
+  const nearestClass = useMemo(() => {
+    if (!nearestAttendanceTarget) return null;
+    return classes.find((item) => item.id === nearestAttendanceTarget.classId) ?? null;
+  }, [classes, nearestAttendanceTarget]);
+
   const showToast = (message: string, type: "info" | "success" | "error") => {
     setToast({ message, type });
   };
@@ -324,36 +329,93 @@ export default function Home() {
           <Text style={{ color: colors.primaryText, marginTop: 6, opacity: 0.85 }}>
             Turmas, treino e chamada em um lugar
           </Text>
-          <View style={{ marginTop: 12 }}>
-            <Pressable
-              onPress={() => {
-                if (!nearestAttendanceTarget) return;
-                router.push({
-                  pathname: "/class/[id]/attendance",
-                  params: {
-                    id: nearestAttendanceTarget.classId,
-                    date: nearestAttendanceTarget.date,
-                  },
-                });
-              }}
-              disabled={!nearestAttendanceTarget}
-              style={{
-                alignSelf: "flex-start",
-                paddingVertical: 8,
-                paddingHorizontal: 14,
-                borderRadius: 999,
-                backgroundColor: nearestAttendanceTarget
-                  ? colors.secondaryBg
-                  : colors.primaryDisabledBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                opacity: nearestAttendanceTarget ? 1 : 0.7,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Fazer chamada
-              </Text>
-            </Pressable>
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              <Pressable
+                onPress={() => {
+                  if (!nearestAttendanceTarget) return;
+                  router.push({
+                    pathname: "/class/[id]/attendance",
+                    params: {
+                      id: nearestAttendanceTarget.classId,
+                      date: nearestAttendanceTarget.date,
+                    },
+                  });
+                }}
+                disabled={!nearestAttendanceTarget}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: nearestAttendanceTarget
+                    ? colors.secondaryBg
+                    : colors.primaryDisabledBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Fazer chamada
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (!nearestAttendanceTarget) return;
+                  router.push({
+                    pathname: "/class/[id]/session",
+                    params: {
+                      id: nearestAttendanceTarget.classId,
+                      date: nearestAttendanceTarget.date,
+                    },
+                  });
+                }}
+                disabled={!nearestAttendanceTarget}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: nearestAttendanceTarget
+                    ? colors.secondaryBg
+                    : colors.primaryDisabledBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Registrar sessao
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (!nearestClass) return;
+                  router.push({
+                    pathname: "/periodization",
+                    params: {
+                      classId: nearestClass.id,
+                      unit: nearestClass.unit,
+                    },
+                  });
+                }}
+                disabled={!nearestClass}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: nearestClass
+                    ? colors.secondaryBg
+                    : colors.primaryDisabledBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: nearestClass ? 1 : 0.7,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Abrir plano
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 

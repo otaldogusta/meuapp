@@ -98,6 +98,7 @@ export type Student = {
   phone: string;
   guardianName?: string;
   guardianPhone?: string;
+  guardianRelation?: string;
   birthDate?: string;
   createdAt: string;
 };

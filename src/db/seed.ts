@@ -1,6 +1,7 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { getValidAccessToken } from "../auth/session";
 import * as Sentry from "@sentry/react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type {
   ClassGroup,
   SessionLog,
@@ -13,6 +14,7 @@ import type {
   ClassPlan,
   ScoutingLog,
 } from "../core/models";
+import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
 
@@ -102,6 +104,100 @@ const supabasePatch = async <T>(path: string, body: unknown) => {
 const supabaseDelete = async (path: string) => {
   await supabaseRequest("DELETE", path);
 };
+
+const CACHE_KEYS = {
+  classes: "cache_classes_v1",
+  classPlans: "cache_class_plans_v1",
+  trainingPlans: "cache_training_plans_v1",
+  trainingTemplates: "cache_training_templates_v1",
+  students: "cache_students_v1",
+};
+
+const WRITE_QUEUE_KEY = "pending_writes_v1";
+
+type PendingWrite = {
+  id: string;
+  kind: "session_log" | "attendance_records" | "scouting_log";
+  payload: unknown;
+  createdAt: string;
+};
+
+const isNetworkError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Network request failed") ||
+    message.includes("Failed to fetch") ||
+    message.includes("fetch failed") ||
+    message.includes("NetworkError")
+  );
+};
+
+const readCache = async <T>(key: string): Promise<T | null> => {
+  try {
+    const stored = await AsyncStorage.getItem(key);
+    if (!stored) return null;
+    return JSON.parse(stored) as T;
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = async (key: string, value: unknown) => {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // ignore cache write failures
+  }
+};
+
+const readWriteQueue = async () => {
+  const stored = await readCache<PendingWrite[]>(WRITE_QUEUE_KEY);
+  return stored ?? [];
+};
+
+const writeQueue = async (queue: PendingWrite[]) => {
+  await writeCache(WRITE_QUEUE_KEY, queue);
+};
+
+const enqueueWrite = async (write: PendingWrite) => {
+  const queue = await readWriteQueue();
+  queue.push(write);
+  await writeQueue(queue);
+};
+
+export async function flushPendingWrites() {
+  const queue = await readWriteQueue();
+  if (!queue.length) return { flushed: 0, remaining: 0 };
+  const remaining: PendingWrite[] = [];
+
+  for (const item of queue) {
+    try {
+      if (item.kind === "session_log") {
+        await saveSessionLog(item.payload as SessionLog, { allowQueue: false });
+      } else if (item.kind === "attendance_records") {
+        const payload = item.payload as {
+          classId: string;
+          date: string;
+          records: AttendanceRecord[];
+        };
+        await saveAttendanceRecords(payload.classId, payload.date, payload.records, {
+          allowQueue: false,
+        });
+      } else if (item.kind === "scouting_log") {
+        await saveScoutingLog(item.payload as ScoutingLog, { allowQueue: false });
+      }
+    } catch (error) {
+      if (isNetworkError(error)) {
+        remaining.push(item);
+      } else {
+        Sentry.captureException(error);
+      }
+    }
+  }
+
+  await writeQueue(remaining);
+  return { flushed: queue.length - remaining.length, remaining: remaining.length };
+}
 
 const isMissingRelation = (error: unknown, relation: string) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -226,6 +322,7 @@ type StudentRow = {
   phone: string;
   guardian_name?: string | null;
   guardian_phone?: string | null;
+  guardian_relation?: string | null;
   birthdate?: string | null;
   createdat: string;
 };
@@ -325,7 +422,7 @@ export async function seedIfEmpty() {
       name: "Feminino (8-11)",
       unit: "Rede Esperanca",
       modality: "voleibol",
-      ageband: "8-11",
+      ageband: "08-11",
       gender: "feminino",
       starttime: "14:00",
       end_time: computeEndTime("14:00", 60),
@@ -345,7 +442,7 @@ export async function seedIfEmpty() {
       name: "Masculino (8-11)",
       unit: "Rede Esperanca",
       modality: "voleibol",
-      ageband: "8-11",
+      ageband: "08-11",
       gender: "masculino",
       starttime: "15:30",
       end_time: computeEndTime("15:30", 60),
@@ -365,7 +462,7 @@ export async function seedIfEmpty() {
       name: "6-8 anos",
       unit: "Rede Esportes Pinhais",
       modality: "voleibol",
-      ageband: "6-8",
+      ageband: "06-08",
       gender: "misto",
       starttime: "09:00",
       end_time: computeEndTime("09:00", 60),
@@ -385,7 +482,7 @@ export async function seedIfEmpty() {
       name: "9-11 anos",
       unit: "Rede Esportes Pinhais",
       modality: "voleibol",
-      ageband: "9-11",
+      ageband: "09-11",
       gender: "misto",
       starttime: "10:00",
       end_time: computeEndTime("10:00", 60),
@@ -446,12 +543,9 @@ const calculateAge = (birthDate: string) => {
 };
 
 const parseAgeBand = (value: string) => {
-  const match = value.match(/^(\d{1,2})-(\d{1,2})$/);
-  if (!match) return null;
-  const start = Number(match[1]);
-  const end = Number(match[2]);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  return { start, end };
+  const range = parseAgeBandRange(value);
+  if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) return null;
+  return { start: range.start, end: range.end };
 };
 
 const formatIsoDate = (value: Date) => {
@@ -544,81 +638,64 @@ export async function seedStudentsIfEmpty() {
 }
 
 export async function getClasses(): Promise<ClassGroup[]> {
-  const units = await safeGetUnits();
-  const unitMap = new Map(units.map((unit) => [unit.id, unit.name]));
-  const rows = await supabaseGet<ClassRow[]>("/classes?select=*&order=name.asc");
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    unit:
-      row.unit ??
-      (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
-      "Sem unidade",
-    unitId: row.unit_id ?? undefined,
-    modality:
-      row.modality === "voleibol" || row.modality === "fitness"
-        ? row.modality
-        : undefined,
-    ageBand: row.ageband,
-    gender:
-      row.gender === "masculino" || row.gender === "feminino"
-        ? row.gender
-        : "misto",
-    startTime: row.starttime ?? "14:00",
-    endTime:
-      row.end_time ??
-      row.endtime ??
-      computeEndTime(row.starttime, row.duration ?? 60) ??
-      undefined,
-    durationMinutes: row.duration ?? 60,
-    daysOfWeek:
-      Array.isArray(row.days) && row.days.length
-        ? row.days
-        : row.daysperweek === 3
-          ? [1, 3, 5]
-          : [2, 4],
-    daysPerWeek: row.daysperweek,
-    goal: row.goal,
-    equipment: row.equipment,
-    level: row.level,
-    mvLevel: row.mv_level ?? undefined,
-    cycleStartDate: row.cycle_start_date ?? undefined,
-    cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
-    createdAt: row.createdat ?? undefined,
-  })).sort((a, b) => {
-    const parseRange = (value?: string) => {
-      const fallback = value ?? "";
-      const match = fallback.match(/(\d+)\s*-\s*(\d+)/);
-      if (match) {
-        const start = Number(match[1]);
-        const end = Number(match[2]);
-        return {
-          start: Number.isFinite(start) ? start : Number.POSITIVE_INFINITY,
-          end: Number.isFinite(end) ? end : Number.POSITIVE_INFINITY,
-          label: fallback,
-        };
-      }
-      const single = fallback.match(/(\d+)/);
-      if (single) {
-        const valueNum = Number(single[1]);
-        return {
-          start: Number.isFinite(valueNum) ? valueNum : Number.POSITIVE_INFINITY,
-          end: Number.isFinite(valueNum) ? valueNum : Number.POSITIVE_INFINITY,
-          label: fallback,
-        };
-      }
-      return {
-        start: Number.POSITIVE_INFINITY,
-        end: Number.POSITIVE_INFINITY,
-        label: fallback,
-      };
-    };
-    const aRange = parseRange(a.ageBand || a.name);
-    const bRange = parseRange(b.ageBand || b.name);
-    if (aRange.start !== bRange.start) return aRange.start - bRange.start;
-    if (aRange.end !== bRange.end) return aRange.end - bRange.end;
-    return aRange.label.localeCompare(bRange.label);
-  });
+  try {
+    const units = await safeGetUnits();
+    const unitMap = new Map(units.map((unit) => [unit.id, unit.name]));
+    const rows = await supabaseGet<ClassRow[]>("/classes?select=*&order=name.asc");
+    const mapped = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      unit:
+        row.unit ??
+        (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
+        "Sem unidade",
+      unitId: row.unit_id ?? undefined,
+      modality:
+        row.modality === "voleibol" || row.modality === "fitness"
+          ? row.modality
+          : undefined,
+      ageBand: normalizeAgeBand(row.ageband),
+      gender:
+        row.gender === "masculino" || row.gender === "feminino"
+          ? row.gender
+          : "misto",
+      startTime: row.starttime ?? "14:00",
+      endTime:
+        row.end_time ??
+        row.endtime ??
+        computeEndTime(row.starttime, row.duration ?? 60) ??
+        undefined,
+      durationMinutes: row.duration ?? 60,
+      daysOfWeek:
+        Array.isArray(row.days) && row.days.length
+          ? row.days
+          : row.daysperweek === 3
+            ? [1, 3, 5]
+            : [2, 4],
+      daysPerWeek: row.daysperweek,
+      goal: row.goal,
+      equipment: row.equipment,
+      level: row.level,
+      mvLevel: row.mv_level ?? undefined,
+      cycleStartDate: row.cycle_start_date ?? undefined,
+      cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
+      createdAt: row.createdat ?? undefined,
+    })).sort((a, b) => {
+      const aRange = parseAgeBandRange(a.ageBand || a.name);
+      const bRange = parseAgeBandRange(b.ageBand || b.name);
+      if (aRange.start !== bRange.start) return aRange.start - bRange.start;
+      if (aRange.end !== bRange.end) return aRange.end - bRange.end;
+      return aRange.label.localeCompare(bRange.label);
+    });
+    await writeCache(CACHE_KEYS.classes, mapped);
+    return mapped;
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const cached = await readCache<ClassGroup[]>(CACHE_KEYS.classes);
+      if (cached) return cached;
+    }
+    throw error;
+  }
 }
 
 export async function getClassById(id: string): Promise<ClassGroup | null> {
@@ -641,7 +718,7 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
       row.modality === "voleibol" || row.modality === "fitness"
         ? row.modality
         : undefined,
-    ageBand: row.ageband,
+    ageBand: normalizeAgeBand(row.ageband),
     gender:
       row.gender === "masculino" || row.gender === "feminino"
         ? row.gender
@@ -693,7 +770,7 @@ export async function updateClass(
     unit: data.unit,
     days: data.daysOfWeek,
     goal: data.goal,
-    ageband: data.ageBand,
+    ageband: normalizeAgeBand(data.ageBand),
     gender: data.gender,
     starttime: data.startTime,
     end_time: computeEndTime(data.startTime, data.durationMinutes),
@@ -741,7 +818,7 @@ export async function saveClass(data: {
       unit: data.unit,
       unit_id: resolvedUnit,
       modality: data.modality ?? "fitness",
-      ageband: data.ageBand,
+      ageband: normalizeAgeBand(data.ageBand),
       gender: data.gender,
       starttime: data.startTime,
       end_time: computeEndTime(data.startTime, data.durationMinutes),
@@ -771,7 +848,7 @@ export async function duplicateClass(base: ClassGroup) {
       unit: base.unit,
       unit_id: resolvedUnit,
       modality: base.modality ?? "fitness",
-      ageband: base.ageBand,
+      ageband: normalizeAgeBand(base.ageBand),
       gender: base.gender,
       starttime: base.startTime,
       end_time: computeEndTime(base.startTime, base.durationMinutes),
@@ -871,55 +948,76 @@ export async function getLatestScoutingLog(
   }
 }
 
-export async function saveScoutingLog(log: ScoutingLog) {
-  const now = new Date().toISOString();
-  const existing = await getScoutingLogByDate(log.classId, log.date);
-  const payload = {
-    classid: log.classId,
-    unit: log.unit ?? null,
-    date: log.date,
-    serve_0: log.serve0,
-    serve_1: log.serve1,
-    serve_2: log.serve2,
-    receive_0: log.receive0,
-    receive_1: log.receive1,
-    receive_2: log.receive2,
-    set_0: log.set0,
-    set_1: log.set1,
-    set_2: log.set2,
-    attack_send_0: log.attackSend0,
-    attack_send_1: log.attackSend1,
-    attack_send_2: log.attackSend2,
-    updatedat: now,
-  };
+export async function saveScoutingLog(
+  log: ScoutingLog,
+  options?: { allowQueue?: boolean }
+) {
+  const allowQueue = options?.allowQueue !== false;
+  try {
+    const now = new Date().toISOString();
+    const existing = await getScoutingLogByDate(log.classId, log.date);
+    const payload = {
+      classid: log.classId,
+      unit: log.unit ?? null,
+      date: log.date,
+      serve_0: log.serve0,
+      serve_1: log.serve1,
+      serve_2: log.serve2,
+      receive_0: log.receive0,
+      receive_1: log.receive1,
+      receive_2: log.receive2,
+      set_0: log.set0,
+      set_1: log.set1,
+      set_2: log.set2,
+      attack_send_0: log.attackSend0,
+      attack_send_1: log.attackSend1,
+      attack_send_2: log.attackSend2,
+      updatedat: now,
+    };
 
-  if (existing) {
-    await supabasePatch(
-      "/scouting_logs?classid=eq." +
-        encodeURIComponent(log.classId) +
-        "&date=eq." +
-        encodeURIComponent(log.date),
-      payload
-    );
-    return { ...log, createdAt: existing.createdAt, updatedAt: now };
+    if (existing) {
+      await supabasePatch(
+        "/scouting_logs?classid=eq." +
+          encodeURIComponent(log.classId) +
+          "&date=eq." +
+          encodeURIComponent(log.date),
+        payload
+      );
+      return { ...log, createdAt: existing.createdAt, updatedAt: now };
+    }
+
+    const created = {
+      ...payload,
+      id: log.id || "scout_" + Date.now(),
+      createdat: log.createdAt || now,
+      updatedat: now,
+    };
+    await supabasePost("/scouting_logs", [created]);
+    return {
+      ...log,
+      id: created.id,
+      createdAt: created.createdat,
+      updatedAt: now,
+    };
+  } catch (error) {
+    if (allowQueue && isNetworkError(error)) {
+      await enqueueWrite({
+        id: "queue_scout_" + Date.now(),
+        kind: "scouting_log",
+        payload: log,
+        createdAt: new Date().toISOString(),
+      });
+      return { ...log };
+    }
+    throw error;
   }
-
-  const created = {
-    ...payload,
-    id: log.id || "scout_" + Date.now(),
-    createdat: log.createdAt || now,
-    updatedat: now,
-  };
-  await supabasePost("/scouting_logs", [created]);
-  return {
-    ...log,
-    id: created.id,
-    createdAt: created.createdat,
-    updatedAt: now,
-  };
 }
 
-export async function saveSessionLog(log: SessionLog) {
+export async function saveSessionLog(
+  log: SessionLog,
+  options?: { allowQueue?: boolean }
+) {
+  const allowQueue = options?.allowQueue !== false;
   const pseValue =
     typeof (log as { PSE?: number }).PSE === "number"
       ? (log as { PSE?: number }).PSE
@@ -933,21 +1031,35 @@ export async function saveSessionLog(log: SessionLog) {
     log.participantsCount >= 0
       ? Math.round(log.participantsCount)
       : null;
-  await supabasePost("/session_logs", [
-    {
-      id: "log_" + Date.now(),
-      classid: log.classId,
-      rpe: pseValue,
-      technique: log.technique,
-      attendance: log.attendance,
-      activity,
-      conclusion,
-      participants_count: participantsCount,
-      photos,
-      pain_score: log.painScore ?? null,
-      createdat: log.createdAt,
-    },
-  ]);
+
+  try {
+    await supabasePost("/session_logs", [
+      {
+        id: "log_" + Date.now(),
+        classid: log.classId,
+        rpe: pseValue,
+        technique: log.technique,
+        attendance: log.attendance,
+        activity,
+        conclusion,
+        participants_count: participantsCount,
+        photos,
+        pain_score: log.painScore ?? null,
+        createdat: log.createdAt,
+      },
+    ]);
+  } catch (error) {
+    if (allowQueue && isNetworkError(error)) {
+      await enqueueWrite({
+        id: "queue_log_" + Date.now(),
+        kind: "session_log",
+        payload: log,
+        createdAt: new Date().toISOString(),
+      });
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function getSessionLogByDate(
@@ -1007,24 +1119,34 @@ export async function getSessionLogsByRange(
 }
 
 export async function getTrainingPlans(): Promise<TrainingPlan[]> {
-  const rows = await supabaseGet<TrainingPlanRow[]>(
-    "/training_plans?select=*&order=createdat.desc"
-  );
-  return rows.map((row) => ({
-    id: row.id,
-    classId: row.classid,
-    title: row.title,
-    tags: row.tags ?? [],
-    warmup: row.warmup ?? [],
-    main: row.main ?? [],
-    cooldown: row.cooldown ?? [],
-    warmupTime: row.warmuptime ?? "",
-    mainTime: row.maintime ?? "",
-    cooldownTime: row.cooldowntime ?? "",
-    applyDays: row.applydays ?? [],
-    applyDate: row.applydate ?? "",
-    createdAt: row.createdat,
-  }));
+  try {
+    const rows = await supabaseGet<TrainingPlanRow[]>(
+      "/training_plans?select=*&order=createdat.desc"
+    );
+    const mapped = rows.map((row) => ({
+      id: row.id,
+      classId: row.classid,
+      title: row.title,
+      tags: row.tags ?? [],
+      warmup: row.warmup ?? [],
+      main: row.main ?? [],
+      cooldown: row.cooldown ?? [],
+      warmupTime: row.warmuptime ?? "",
+      mainTime: row.maintime ?? "",
+      cooldownTime: row.cooldowntime ?? "",
+      applyDays: row.applydays ?? [],
+      applyDate: row.applydate ?? "",
+      createdAt: row.createdat,
+    }));
+    await writeCache(CACHE_KEYS.trainingPlans, mapped);
+    return mapped;
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const cached = await readCache<TrainingPlan[]>(CACHE_KEYS.trainingPlans);
+      if (cached) return cached;
+    }
+    throw error;
+  }
 }
 
 export async function saveTrainingPlan(plan: TrainingPlan) {
@@ -1073,6 +1195,18 @@ export async function deleteTrainingPlan(id: string) {
   );
 }
 
+export async function deleteTrainingPlansByClassAndDate(
+  classId: string,
+  date: string
+) {
+  await supabaseDelete(
+    "/training_plans?classid=eq." +
+      encodeURIComponent(classId) +
+      "&applydate=eq." +
+      encodeURIComponent(date)
+  );
+}
+
 export async function getClassPlansByClass(
   classId: string
 ): Promise<ClassPlan[]> {
@@ -1082,7 +1216,7 @@ export async function getClassPlansByClass(
         encodeURIComponent(classId) +
         "&order=weeknumber.asc"
     );
-    return rows.map((row) => ({
+    const mapped = rows.map((row) => ({
       id: row.id,
       classId: row.classid,
       startDate: row.startdate,
@@ -1100,8 +1234,16 @@ export async function getClassPlansByClass(
       createdAt: row.created_at ?? row.createdat ?? new Date().toISOString(),
       updatedAt: row.updated_at ?? row.updatedat ?? undefined,
     }));
+    const cache = (await readCache<Record<string, ClassPlan[]>>(CACHE_KEYS.classPlans)) ?? {};
+    cache[classId] = mapped;
+    await writeCache(CACHE_KEYS.classPlans, cache);
+    return mapped;
   } catch (error) {
     if (isMissingRelation(error, "class_plans")) return [];
+    if (isNetworkError(error)) {
+      const cache = await readCache<Record<string, ClassPlan[]>>(CACHE_KEYS.classPlans);
+      if (cache && cache[classId]) return cache[classId];
+    }
     throw error;
   }
 }
@@ -1231,22 +1373,32 @@ export async function deleteExercise(id: string) {
 }
 
 export async function getTrainingTemplates(): Promise<TrainingTemplate[]> {
-  const rows = await supabaseGet<TrainingTemplateRow[]>(
-    "/training_templates?select=*&order=createdat.desc"
-  );
-  return rows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    ageBand: row.ageband,
-    tags: row.tags ?? [],
-    warmup: row.warmup ?? [],
-    main: row.main ?? [],
-    cooldown: row.cooldown ?? [],
-    warmupTime: row.warmuptime ?? "",
-    mainTime: row.maintime ?? "",
-    cooldownTime: row.cooldowntime ?? "",
-    createdAt: row.createdat,
-  }));
+  try {
+    const rows = await supabaseGet<TrainingTemplateRow[]>(
+      "/training_templates?select=*&order=createdat.desc"
+    );
+    const mapped = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      ageBand: normalizeAgeBand(row.ageband),
+      tags: row.tags ?? [],
+      warmup: row.warmup ?? [],
+      main: row.main ?? [],
+      cooldown: row.cooldown ?? [],
+      warmupTime: row.warmuptime ?? "",
+      mainTime: row.maintime ?? "",
+      cooldownTime: row.cooldowntime ?? "",
+      createdAt: row.createdat,
+    }));
+    await writeCache(CACHE_KEYS.trainingTemplates, mapped);
+    return mapped;
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const cached = await readCache<TrainingTemplate[]>(CACHE_KEYS.trainingTemplates);
+      if (cached) return cached;
+    }
+    throw error;
+  }
 }
 
 export async function saveTrainingTemplate(
@@ -1256,7 +1408,7 @@ export async function saveTrainingTemplate(
     {
       id: template.id,
       title: template.title,
-      ageband: template.ageBand,
+      ageband: normalizeAgeBand(template.ageBand),
       tags: template.tags ?? [],
       warmup: template.warmup,
       main: template.main,
@@ -1276,7 +1428,7 @@ export async function updateTrainingTemplate(
     "/training_templates?id=eq." + encodeURIComponent(template.id),
     {
       title: template.title,
-      ageband: template.ageBand,
+      ageband: normalizeAgeBand(template.ageBand),
       tags: template.tags ?? [],
       warmup: template.warmup,
       main: template.main,
@@ -1344,10 +1496,11 @@ export async function getLatestTrainingPlanByClass(
 }
 
 export async function getStudents(): Promise<Student[]> {
-  const rows = await supabaseGet<StudentRow[]>(
-    "/students?select=*&order=name.asc"
-  );
-    return rows.map((row) => ({
+  try {
+    const rows = await supabaseGet<StudentRow[]>(
+      "/students?select=*&order=name.asc"
+    );
+    const mapped = rows.map((row) => ({
       id: row.id,
       name: row.name,
       classId: row.classid,
@@ -1355,15 +1508,26 @@ export async function getStudents(): Promise<Student[]> {
       phone: row.phone,
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
+      guardianRelation: row.guardian_relation ?? undefined,
       birthDate: row.birthdate ?? "",
       createdAt: row.createdat,
     }));
+    await writeCache(CACHE_KEYS.students, mapped);
+    return mapped;
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const cached = await readCache<Student[]>(CACHE_KEYS.students);
+      if (cached) return cached;
+    }
+    throw error;
   }
+}
 
 export async function getStudentsByClass(classId: string): Promise<Student[]> {
-  const rows = await supabaseGet<StudentRow[]>(
-    "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
-  );
+  try {
+    const rows = await supabaseGet<StudentRow[]>(
+      "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
+    );
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -1372,10 +1536,18 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
       phone: row.phone,
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
+      guardianRelation: row.guardian_relation ?? undefined,
       birthDate: row.birthdate ?? "",
       createdAt: row.createdat,
     }));
+  } catch (error) {
+    if (isNetworkError(error)) {
+      const cached = await readCache<Student[]>(CACHE_KEYS.students);
+      if (cached) return cached.filter((item) => item.classId === classId);
+    }
+    throw error;
   }
+}
 
 export async function getStudentById(id: string): Promise<Student | null> {
   const rows = await supabaseGet<StudentRow[]>(
@@ -1391,6 +1563,7 @@ export async function getStudentById(id: string): Promise<Student | null> {
       phone: row.phone,
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
+      guardianRelation: row.guardian_relation ?? undefined,
       birthDate: row.birthdate ?? "",
       createdAt: row.createdat,
     };
@@ -1406,6 +1579,7 @@ export async function saveStudent(student: Student) {
         phone: student.phone,
         guardian_name: student.guardianName?.trim() || null,
         guardian_phone: student.guardianPhone?.trim() || null,
+        guardian_relation: student.guardianRelation?.trim() || null,
         birthdate: student.birthDate ? student.birthDate : null,
         createdat: student.createdAt,
       },
@@ -1422,6 +1596,7 @@ export async function updateStudent(student: Student) {
         phone: student.phone,
         guardian_name: student.guardianName?.trim() || null,
         guardian_phone: student.guardianPhone?.trim() || null,
+        guardian_relation: student.guardianRelation?.trim() || null,
         birthdate: student.birthDate ? student.birthDate : null,
         createdat: student.createdAt,
       }
@@ -1435,30 +1610,45 @@ export async function deleteStudent(id: string) {
 export async function saveAttendanceRecords(
   classId: string,
   date: string,
-  records: AttendanceRecord[]
+  records: AttendanceRecord[],
+  options?: { allowQueue?: boolean }
 ) {
-  await supabaseDelete(
-    "/attendance_logs?classid=eq." +
-      encodeURIComponent(classId) +
-      "&date=eq." +
-      encodeURIComponent(date)
-  );
+  const allowQueue = options?.allowQueue !== false;
+  try {
+    await supabaseDelete(
+      "/attendance_logs?classid=eq." +
+        encodeURIComponent(classId) +
+        "&date=eq." +
+        encodeURIComponent(date)
+    );
 
-  const rows: AttendanceRow[] = records.map((record) => ({
-    id: record.id,
-    classid: record.classId,
-    studentid: record.studentId,
-    date: record.date,
-    status: record.status,
-    note: record.note,
-    pain_score:
-      typeof record.painScore === "number" && Number.isFinite(record.painScore)
-        ? record.painScore
-        : null,
-    createdat: record.createdAt,
-  }));
+    const rows: AttendanceRow[] = records.map((record) => ({
+      id: record.id,
+      classid: record.classId,
+      studentid: record.studentId,
+      date: record.date,
+      status: record.status,
+      note: record.note,
+      pain_score:
+        typeof record.painScore === "number" && Number.isFinite(record.painScore)
+          ? record.painScore
+          : null,
+      createdat: record.createdAt,
+    }));
 
-  await supabasePost("/attendance_logs", rows);
+    await supabasePost("/attendance_logs", rows);
+  } catch (error) {
+    if (allowQueue && isNetworkError(error)) {
+      await enqueueWrite({
+        id: "queue_att_" + Date.now(),
+        kind: "attendance_records",
+        payload: { classId, date, records },
+        createdAt: new Date().toISOString(),
+      });
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function getAttendanceByClass(
@@ -1538,3 +1728,4 @@ export async function getAttendanceAll(): Promise<AttendanceRecord[]> {
       createdAt: row.createdat,
     }));
   }
+

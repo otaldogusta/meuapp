@@ -19,7 +19,7 @@ export function generateSession(cls: ClassGroup): SessionPlan {
 }
 
 function getMainByAgeBand(ageBand: ClassGroup["ageBand"]): string[] {
-  if (ageBand === "8-9") {
+  if (ageBand === "08-09") {
     return [
       "Circuito 8 estacoes (25s ON / 35s OFF) x2-3",
       "Estacoes: agachar - empurrar - puxar - equilibrio - zigue-zague - salto - arremesso - prancha",
@@ -41,4 +41,5 @@ function getMainByAgeBand(ageBand: ClassGroup["ageBand"]): string[] {
     "Core (5min): anti-rotacao + prancha lateral",
   ];
 }
+
 

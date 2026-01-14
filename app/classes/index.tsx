@@ -65,7 +65,7 @@ export default function ClassesScreen() {
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");
   const [newModality, setNewModality] = useState<ClassGroup["modality"]>("voleibol");
-  const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
+  const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [newGender, setNewGender] = useState<ClassGroup["gender"]>("misto");
   const [newGoal, setNewGoal] = useState<ClassGroup["goal"]>("Fundamentos");
   const [newStartTime, setNewStartTime] = useState("14:00");
@@ -81,7 +81,7 @@ export default function ClassesScreen() {
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
   const [editModality, setEditModality] = useState<ClassGroup["modality"]>("voleibol");
-  const [editAgeBand, setEditAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
+  const [editAgeBand, setEditAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [editGender, setEditGender] = useState<ClassGroup["gender"]>("misto");
   const [editGoal, setEditGoal] = useState<ClassGroup["goal"]>("Fundamentos");
   const [editStartTime, setEditStartTime] = useState("14:00");
@@ -123,7 +123,16 @@ export default function ClassesScreen() {
     animatedStyle: allAgesAnimStyle,
     isVisible: showAllAgesContent,
   } = useCollapsibleAnimation(showAllAges, { translateY: -6 });
-  const ageBandOptions = ["8-9", "10-12", "13-15", "16-18"];
+  const ageBandOptions = [
+    "06-08",
+    "08-09",
+    "08-11",
+    "09-11",
+    "10-12",
+    "12-14",
+    "13-15",
+    "16-18",
+  ];
   const genderOptions: { value: ClassGroup["gender"]; label: string }[] = [
     { value: "masculino", label: "Masculino" },
     { value: "feminino", label: "Feminino" },
@@ -501,7 +510,7 @@ export default function ClassesScreen() {
         setNewName("");
         setNewUnit("");
         setNewModality("voleibol");
-        setNewAgeBand("8-9");
+        setNewAgeBand("08-09");
       setNewGender("misto");
       setNewGoal("Fundamentos");
       setNewDays([]);
@@ -523,7 +532,7 @@ export default function ClassesScreen() {
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
     setEditModality(inferModality(item));
-    setEditAgeBand(item.ageBand ?? "8-9");
+    setEditAgeBand(item.ageBand ?? "08-09");
     setEditGender(item.gender ?? "misto");
     setEditGoal(item.goal ?? "Fundamentos");
     setEditStartTime(item.startTime ?? "14:00");
@@ -1049,7 +1058,7 @@ export default function ClassesScreen() {
       newModality !== "voleibol" ||
       newStartTime.trim() !== "14:00" ||
       newDuration.trim() !== "60" ||
-      newAgeBand.trim() !== "8-9" ||
+      newAgeBand.trim() !== "08-09" ||
     newMvLevel.trim() !== "MV1" ||
     newGender !== "misto" ||
     newGoal.trim() !== "Fundamentos" ||
@@ -2256,6 +2265,7 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
+
 
 
 

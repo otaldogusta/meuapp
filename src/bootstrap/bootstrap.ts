@@ -1,4 +1,5 @@
 import { initDb } from "../db/sqlite";
+import { flushPendingWrites } from "../db/seed";
 import { loadSession } from "../auth/session";
 import type { AuthSession } from "../auth/session";
 import * as Sentry from "@sentry/react-native";
@@ -41,6 +42,12 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         message: `loadSession: ${sessionMs}ms`,
         level: "info",
       });
+
+      try {
+        await flushPendingWrites();
+      } catch (error) {
+        Sentry.captureException(error);
+      }
 
       return { session } as BootstrapResult;
     })(),

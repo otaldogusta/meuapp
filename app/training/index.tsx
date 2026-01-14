@@ -65,6 +65,7 @@ import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { normalizeAgeBand, parseAgeBandRange, sortAgeBandList } from "../../src/core/age-band";
 
 const toLines = (value: string) =>
   value
@@ -161,17 +162,9 @@ const extractKeywords = (value: string) => {
 };
 
 const parseAgeBand = (value?: string) => {
-  if (!value) return null;
-  const match = value.match(/(\d+)\s*-\s*(\d+)/);
-  if (match) {
-    return { start: Number(match[1]), end: Number(match[2]) };
-  }
-  const single = value.match(/(\d+)/);
-  if (single) {
-    const age = Number(single[1]);
-    return { start: age, end: age };
-  }
-  return null;
+  const range = parseAgeBandRange(value);
+  if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) return null;
+  return { start: range.start, end: range.end };
 };
 
 const getPiagetTags = (ageBand?: string) => {
@@ -560,18 +553,16 @@ export default function TrainingList() {
   const ageBands = useMemo(() => {
     const values = new Set<string>();
     classes.forEach((item) => {
-      if (item.ageBand) values.add(item.ageBand);
+      const band = normalizeAgeBand(item.ageBand);
+      if (band) values.add(band);
     });
     trainingTemplates.forEach((template) => {
-      template.ageBands.forEach((band) => values.add(band));
+      template.ageBands.forEach((band) => {
+        const normalized = normalizeAgeBand(band);
+        if (normalized) values.add(normalized);
+      });
     });
-    return sortClassesByAgeBand(
-      Array.from(values).map((band) => ({
-        id: band,
-        name: band,
-        ageBand: band as ClassGroup["ageBand"],
-      }))
-    ).map((item) => item.ageBand);
+    return sortAgeBandList(Array.from(values));
   }, [classes]);
 
   const isTemplateEditorDirty = useMemo(() => {
@@ -640,7 +631,9 @@ export default function TrainingList() {
         warmupTime: template.warmupTime,
         mainTime: template.mainTime,
         cooldownTime: template.cooldownTime,
-        ageBands: template.ageBands,
+        ageBands: template.ageBands
+          .map((band) => normalizeAgeBand(band))
+          .filter(Boolean),
         source: "built" as const,
       })),
       ...templateItems.map((template) => ({
@@ -653,7 +646,7 @@ export default function TrainingList() {
         warmupTime: template.warmupTime,
         mainTime: template.mainTime,
         cooldownTime: template.cooldownTime,
-        ageBands: [template.ageBand],
+        ageBands: [normalizeAgeBand(template.ageBand)].filter(Boolean),
         createdAt: template.createdAt,
         source: "custom" as const,
       })),
@@ -665,8 +658,9 @@ export default function TrainingList() {
       (template) => !hiddenSet.has(template.id)
     );
     if (!templateAgeBand) return visible;
+    const normalizedBand = normalizeAgeBand(templateAgeBand);
     return visible.filter((template) =>
-      template.ageBands.includes(templateAgeBand)
+      template.ageBands.includes(normalizedBand)
     );
   }, [templateAgeBand, templateItems, hiddenTemplates]);
 
@@ -1305,7 +1299,12 @@ export default function TrainingList() {
   const pickClassIdForAgeBand = useCallback(
     (band?: string) => {
       if (!band) return "";
-      return classes.find((item) => item.ageBand === band)?.id ?? "";
+      const normalized = normalizeAgeBand(band);
+      return (
+        classes.find(
+          (item) => normalizeAgeBand(item.ageBand) === normalized
+        )?.id ?? ""
+      );
     },
     [classes]
   );
@@ -1370,7 +1369,7 @@ export default function TrainingList() {
       warmupTime: plan.warmupTime ?? "",
       mainTime: plan.mainTime ?? "",
       cooldownTime: plan.cooldownTime ?? "",
-      ageBands: ["8-9", "10-12", "13-15", "16-18"],
+      ageBands: ["08-09", "10-12", "13-15", "16-18"],
       source: "custom",
     });
   };
@@ -1860,6 +1859,24 @@ export default function TrainingList() {
           title="Treinos"
           subtitle="Aquecimento, parte principal e volta a calma"
         />
+        <Pressable
+          onPress={() => router.push({ pathname: "/training/import" })}
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 14,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
+            Importar planejamento (CSV)
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+            Cole o CSV e revise antes de salvar
+          </Text>
+        </Pressable>
 
         <View
           onLayout={(event) => setFormY(event.nativeEvent.layout.y)}
@@ -3208,4 +3225,5 @@ export default function TrainingList() {
     </SafeAreaView>
   );
 }
+
 

@@ -86,13 +86,16 @@ export default function StudentsScreen() {
   const [phone, setPhone] = useState("");
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
+  const [guardianRelation, setGuardianRelation] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
+  const [showGuardianRelationPicker, setShowGuardianRelationPicker] = useState(false);
   const [showEditUnitPicker, setShowEditUnitPicker] = useState(false);
   const [showEditClassPicker, setShowEditClassPicker] = useState(false);
+  const [showEditGuardianRelationPicker, setShowEditGuardianRelationPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [studentFormError, setStudentFormError] = useState("");
@@ -109,6 +112,7 @@ export default function StudentsScreen() {
     phone: string;
     guardianName: string;
     guardianPhone: string;
+    guardianRelation: string;
   } | null>(null);
   const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
     "students_birthday_notice_v1",
@@ -127,6 +131,12 @@ export default function StudentsScreen() {
     width: number;
     height: number;
   } | null>(null);
+  const [guardianRelationTriggerLayout, setGuardianRelationTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [editContainerWindow, setEditContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const [editUnitTriggerLayout, setEditUnitTriggerLayout] = useState<{
     x: number;
@@ -140,20 +150,36 @@ export default function StudentsScreen() {
     width: number;
     height: number;
   } | null>(null);
+  const [editGuardianRelationTriggerLayout, setEditGuardianRelationTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const containerRef = useRef<View>(null);
   const unitTriggerRef = useRef<View>(null);
   const classTriggerRef = useRef<View>(null);
+  const guardianRelationTriggerRef = useRef<View>(null);
   const editContainerRef = useRef<View>(null);
   const editUnitTriggerRef = useRef<View>(null);
   const editClassTriggerRef = useRef<View>(null);
+  const editGuardianRelationTriggerRef = useRef<View>(null);
   const { animatedStyle: unitPickerAnimStyle, isVisible: showUnitPickerContent } =
     useCollapsibleAnimation(showUnitPicker);
   const { animatedStyle: classPickerAnimStyle, isVisible: showClassPickerContent } =
     useCollapsibleAnimation(showClassPicker);
+  const {
+    animatedStyle: guardianRelationPickerAnimStyle,
+    isVisible: showGuardianRelationPickerContent,
+  } = useCollapsibleAnimation(showGuardianRelationPicker);
   const { animatedStyle: editUnitPickerAnimStyle, isVisible: showEditUnitPickerContent } =
     useCollapsibleAnimation(showEditUnitPicker);
   const { animatedStyle: editClassPickerAnimStyle, isVisible: showEditClassPickerContent } =
     useCollapsibleAnimation(showEditClassPicker);
+  const {
+    animatedStyle: editGuardianRelationPickerAnimStyle,
+    isVisible: showEditGuardianRelationPickerContent,
+  } = useCollapsibleAnimation(showEditGuardianRelationPicker);
 
   useEffect(() => {
     let alive = true;
@@ -184,23 +210,27 @@ export default function StudentsScreen() {
   const closeAllPickers = useCallback(() => {
     setShowUnitPicker(false);
     setShowClassPicker(false);
+    setShowGuardianRelationPicker(false);
   }, []);
   const closeAllEditPickers = useCallback(() => {
     setShowEditUnitPicker(false);
     setShowEditClassPicker(false);
+    setShowEditGuardianRelationPicker(false);
   }, []);
 
   const toggleFormPicker = useCallback(
-    (target: "unit" | "class") => {
+    (target: "unit" | "class" | "guardianRelation") => {
       setShowUnitPicker((prev) => (target === "unit" ? !prev : false));
       setShowClassPicker((prev) => (target === "class" ? !prev : false));
+      setShowGuardianRelationPicker((prev) => (target === "guardianRelation" ? !prev : false));
     },
     []
   );
   const toggleEditPicker = useCallback(
-    (target: "unit" | "class") => {
+    (target: "unit" | "class" | "guardianRelation") => {
       setShowEditUnitPicker((prev) => (target === "unit" ? !prev : false));
       setShowEditClassPicker((prev) => (target === "class" ? !prev : false));
+      setShowEditGuardianRelationPicker((prev) => (target === "guardianRelation" ? !prev : false));
     },
     []
   );
@@ -218,6 +248,11 @@ export default function StudentsScreen() {
     setShowClassPicker(false);
   }, [unitLabel]);
 
+  const handleSelectGuardianRelation = useCallback((value: string) => {
+    setGuardianRelation(value);
+    setShowGuardianRelationPicker(false);
+  }, []);
+
   const handleSelectEditUnit = useCallback((value: string) => {
     setUnit(value);
     setShowEditUnitPicker(false);
@@ -231,8 +266,13 @@ export default function StudentsScreen() {
     setShowEditClassPicker(false);
   }, [unitLabel]);
 
+  const handleSelectEditGuardianRelation = useCallback((value: string) => {
+    setGuardianRelation(value);
+    setShowEditGuardianRelationPicker(false);
+  }, []);
+
   const syncPickerLayouts = useCallback(() => {
-    const hasPickerOpen = showUnitPicker || showClassPicker;
+    const hasPickerOpen = showUnitPicker || showClassPicker || showGuardianRelationPicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showUnitPicker) {
@@ -245,14 +285,20 @@ export default function StudentsScreen() {
           setClassTriggerLayout({ x, y, width, height });
         });
       }
+      if (showGuardianRelationPicker) {
+        guardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setGuardianRelationTriggerLayout({ x, y, width, height });
+        });
+      }
       containerRef.current?.measureInWindow((x, y) => {
         setContainerWindow({ x, y });
       });
     });
-  }, [showClassPicker, showUnitPicker]);
+  }, [showClassPicker, showGuardianRelationPicker, showUnitPicker]);
 
   const syncEditPickerLayouts = useCallback(() => {
-    const hasPickerOpen = showEditUnitPicker || showEditClassPicker;
+    const hasPickerOpen =
+      showEditUnitPicker || showEditClassPicker || showEditGuardianRelationPicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showEditUnitPicker) {
@@ -265,11 +311,16 @@ export default function StudentsScreen() {
           setEditClassTriggerLayout({ x, y, width, height });
         });
       }
+      if (showEditGuardianRelationPicker) {
+        editGuardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditGuardianRelationTriggerLayout({ x, y, width, height });
+        });
+      }
       editContainerRef.current?.measureInWindow((x, y) => {
         setEditContainerWindow({ x, y });
       });
     });
-  }, [showEditClassPicker, showEditUnitPicker]);
+  }, [showEditClassPicker, showEditGuardianRelationPicker, showEditUnitPicker]);
 
   const unitOptions = useMemo(() => {
     const set = new Set<string>();
@@ -302,14 +353,24 @@ export default function StudentsScreen() {
       return aParsed.label.localeCompare(bParsed.label);
     });
   }, [classes]);
+  const guardianRelationOptions = useMemo(
+    () => ["Pai", "Mae", "Tia", "Avo", "Irmao", "Irma", "Responsavel", "Outro"],
+    []
+  );
 
   useEffect(() => {
     syncPickerLayouts();
-  }, [showUnitPicker, showClassPicker, syncPickerLayouts]);
+  }, [showUnitPicker, showClassPicker, showGuardianRelationPicker, syncPickerLayouts]);
 
   useEffect(() => {
     if (showEditModal) syncEditPickerLayouts();
-  }, [showEditModal, showEditUnitPicker, showEditClassPicker, syncEditPickerLayouts]);
+  }, [
+    showEditModal,
+    showEditUnitPicker,
+    showEditClassPicker,
+    showEditGuardianRelationPicker,
+    syncEditPickerLayouts,
+  ]);
 
   useEffect(() => {
     if (!showForm) closeAllPickers();
@@ -364,6 +425,7 @@ export default function StudentsScreen() {
       phone: phone.trim(),
       guardianName: guardianName.trim(),
       guardianPhone: guardianPhone.trim(),
+      guardianRelation: guardianRelation.trim(),
       birthDate: birthDate || undefined,
       createdAt: editingCreatedAt ?? nowIso,
     };
@@ -392,6 +454,7 @@ export default function StudentsScreen() {
     phone.trim() ||
     guardianName.trim() ||
     guardianPhone.trim() ||
+    guardianRelation.trim() ||
     editingId;
 
   const canSaveStudent =
@@ -412,7 +475,8 @@ export default function StudentsScreen() {
       editSnapshot.birthDate !== birthDate ||
       editSnapshot.phone !== phone ||
       editSnapshot.guardianName !== guardianName ||
-      editSnapshot.guardianPhone !== guardianPhone
+      editSnapshot.guardianPhone !== guardianPhone ||
+      editSnapshot.guardianRelation !== guardianRelation
     );
   }, [
     ageBand,
@@ -423,6 +487,7 @@ export default function StudentsScreen() {
     editingId,
     guardianName,
     guardianPhone,
+    guardianRelation,
     name,
     phone,
     unit,
@@ -439,6 +504,7 @@ export default function StudentsScreen() {
     setPhone("");
     setGuardianName("");
     setGuardianPhone("");
+    setGuardianRelation("");
     setCustomAgeBand("");
     setUnit("");
     setAgeBand("");
@@ -460,6 +526,7 @@ export default function StudentsScreen() {
     setPhone("");
     setGuardianName("");
     setGuardianPhone("");
+    setGuardianRelation("");
   };
 
   const showSaveNotice = (message: string) => {
@@ -537,6 +604,7 @@ export default function StudentsScreen() {
       phone: student.phone,
       guardianName: student.guardianName ?? "",
       guardianPhone: student.guardianPhone ?? "",
+      guardianRelation: student.guardianRelation ?? "",
     });
     if (student.birthDate) {
       setBirthDate(student.birthDate);
@@ -548,6 +616,7 @@ export default function StudentsScreen() {
     setPhone(student.phone);
     setGuardianName(student.guardianName ?? "");
     setGuardianPhone(student.guardianPhone ?? "");
+    setGuardianRelation(student.guardianRelation ?? "");
     closeAllPickers();
     setShowEditModal(true);
     setStudentFormError("");
@@ -1197,7 +1266,10 @@ export default function StudentsScreen() {
                     }}
                   />
                 </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Telefone do responsavel</Text>
                   <TextInput
                     placeholder="Telefone do responsavel"
                     value={guardianPhone}
@@ -1213,6 +1285,29 @@ export default function StudentsScreen() {
                       color: colors.inputText,
                     }}
                   />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Parentesco</Text>
+                  <View ref={guardianRelationTriggerRef}>
+                    <Pressable
+                      onPress={() => toggleFormPicker("guardianRelation")}
+                      style={selectFieldStyle}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {guardianRelation || "Selecione"}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            { rotate: showGuardianRelationPicker ? "180deg" : "0deg" },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
 
@@ -1349,6 +1444,32 @@ export default function StudentsScreen() {
               Nenhuma turma encontrada.
             </Text>
           )}
+        </AnchoredDropdown>
+        <AnchoredDropdown
+          visible={showGuardianRelationPickerContent}
+          layout={guardianRelationTriggerLayout}
+          container={containerWindow}
+          animationStyle={guardianRelationPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {guardianRelationOptions.map((item, index) => (
+            <SelectOption
+              key={item}
+              label={item}
+              value={item}
+              active={item === guardianRelation}
+              onSelect={handleSelectGuardianRelation}
+              isFirst={index === 0}
+            />
+          ))}
         </AnchoredDropdown>
       </View>
       {saveNotice ? (
@@ -1545,7 +1666,10 @@ export default function StudentsScreen() {
                     }}
                   />
                 </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Telefone do responsavel</Text>
                   <TextInput
                     placeholder="Telefone do responsavel"
                     value={guardianPhone}
@@ -1561,6 +1685,29 @@ export default function StudentsScreen() {
                       color: colors.inputText,
                     }}
                   />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Parentesco</Text>
+                  <View ref={editGuardianRelationTriggerRef}>
+                    <Pressable
+                      onPress={() => toggleEditPicker("guardianRelation")}
+                      style={selectFieldStyle}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {guardianRelation || "Selecione"}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            { rotate: showEditGuardianRelationPicker ? "180deg" : "0deg" },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
@@ -1687,6 +1834,32 @@ export default function StudentsScreen() {
               Nenhuma turma encontrada.
             </Text>
           )}
+        </AnchoredDropdown>
+        <AnchoredDropdown
+          visible={showEditGuardianRelationPickerContent}
+          layout={editGuardianRelationTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editGuardianRelationPickerAnimStyle}
+          zIndex={420}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {guardianRelationOptions.map((item, index) => (
+            <SelectOption
+              key={item}
+              label={item}
+              value={item}
+              active={item === guardianRelation}
+              onSelect={handleSelectEditGuardianRelation}
+              isFirst={index === 0}
+            />
+          ))}
         </AnchoredDropdown>
         </View>
       </ModalSheet>
