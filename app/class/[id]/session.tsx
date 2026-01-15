@@ -48,8 +48,7 @@ import { useSaveToast } from "../../../src/ui/save-toast";
 import { Button } from "../../../src/ui/Button";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
-import { getUnitPalette } from "../../../src/ui/unit-colors";
-import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
+import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
@@ -442,8 +441,6 @@ export default function SessionScreen() {
     ? "Volta a calma (" + plan.cooldownTime + ")"
     : "Volta a calma (5 min)";
   const showNoPlanNotice = !plan;
-  const headerSubtitle = block ? cls?.name + " - " + block : cls?.name ?? "";
-  const unitPalette = cls ? getUnitPalette(cls.unit || "", colors) : undefined;
   const className = cls?.name ?? "";
   const classAgeBand = cls?.ageBand ?? "";
   const classGender = cls?.gender ?? "misto";
@@ -683,93 +680,16 @@ export default function SessionScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <View style={{ gap: 8, marginBottom: 12 }}>
-        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-          {title}
-        </Text>
-        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
-          {className}
-        </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-        >
-          {unitPalette ? (
-            <View
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 999,
-                backgroundColor: unitPalette.bg,
-              }}
-            >
-              <Text style={{ color: unitPalette.text, fontWeight: "600", fontSize: 12 }}>
-                {cls?.unit}
-              </Text>
-            </View>
-          ) : null}
-          {classAgeBand ? (
-            <View
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
-                {"Faixa " + classAgeBand}
-              </Text>
-            </View>
-          ) : null}
-          <ClassGenderBadge gender={classGender} size="md" />
-          <View
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 12 }}>
-              {"Data: " + dateLabel}
-            </Text>
-          </View>
-          {timeLabel ? (
-            <View
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 12 }}>
-                {"Horario: " + timeLabel}
-              </Text>
-            </View>
-          ) : null}
-        </ScrollView>
-        {showNoPlanNotice ? (
-          <View
-            style={{
-              marginTop: 6,
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignSelf: "flex-start",
-            }}
-          >
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Sem treino aplicado para esse dia
-            </Text>
-          </View>
-        ) : null}
-      </View>
+      <ClassContextHeader
+        title={title}
+        className={className}
+        unit={cls?.unit}
+        ageBand={classAgeBand}
+        gender={classGender}
+        dateLabel={dateLabel}
+        timeLabel={timeLabel}
+        notice={showNoPlanNotice ? "Sem treino aplicado para esse dia" : undefined}
+      />
 
       {plan ? (
         <View

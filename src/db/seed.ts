@@ -193,6 +193,11 @@ const enqueueWrite = async (write: PendingWrite) => {
   await writeQueue(queue);
 };
 
+export async function getPendingWritesCount() {
+  const queue = await readWriteQueue();
+  return queue.length;
+}
+
 export async function flushPendingWrites() {
   const queue = await readWriteQueue();
   if (!queue.length) return { flushed: 0, remaining: 0 };

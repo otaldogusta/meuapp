@@ -20,7 +20,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import * as Clipboard from "expo-clipboard";
 import * as Updates from "expo-updates";
 
-import { getClasses, seedIfEmpty } from "../src/db/seed";
+import { flushPendingWrites, getClasses, getPendingWritesCount, seedIfEmpty } from "../src/db/seed";
 import type { ClassGroup } from "../src/core/models";
 import { Card } from "../src/ui/Card";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -42,6 +42,8 @@ export default function Home() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [pendingWrites, setPendingWrites] = useState(0);
+  const [syncingWrites, setSyncingWrites] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "info" | "success" | "error";
@@ -76,6 +78,20 @@ export default function Home() {
     return () => {
       alive = false;
       unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const refreshPending = async () => {
+      const count = await getPendingWritesCount();
+      if (alive) setPendingWrites(count);
+    };
+    refreshPending();
+    const interval = setInterval(refreshPending, 10000);
+    return () => {
+      alive = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -238,6 +254,21 @@ export default function Home() {
     setToast({ message, type });
   };
 
+  const handleSyncPending = async () => {
+    setSyncingWrites(true);
+    try {
+      const result = await flushPendingWrites();
+      setPendingWrites(result.remaining);
+      if (result.flushed) {
+        showToast(`Sincronizado: ${result.flushed} item(s).`, "success");
+      }
+    } catch (error) {
+      showToast("Nao foi possivel sincronizar agora.", "error");
+    } finally {
+      setSyncingWrites(false);
+    }
+  };
+
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 2200);
@@ -343,6 +374,45 @@ export default function Home() {
       </View>
 
         <View style={{ gap: 14 }}>
+        {pendingWrites > 0 ? (
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              gap: 6,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Sincronizacao pendente
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              {pendingWrites} item(s) aguardando envio.
+            </Text>
+            <Pressable
+              onPress={handleSyncPending}
+              disabled={syncingWrites}
+              style={{
+                alignSelf: "flex-start",
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: syncingWrites ? colors.primaryDisabledBg : colors.primaryBg,
+              }}
+            >
+              <Text
+                style={{
+                  color: syncingWrites ? colors.secondaryText : colors.primaryText,
+                  fontWeight: "700",
+                }}
+              >
+                {syncingWrites ? "Sincronizando..." : "Sincronizar agora"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View
           style={{
             padding: 16,

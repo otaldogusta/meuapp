@@ -268,6 +268,21 @@ const getPSETarget = (phase: string) => {
   return "6-7";
 };
 
+const validateAcwrLimits = (next: { high: string; low: string }) => {
+  const highValue = Number(next.high);
+  const lowValue = Number(next.low);
+  if (!Number.isFinite(highValue) || !Number.isFinite(lowValue)) {
+    return { ok: false, message: "Informe limites validos para o ACWR." };
+  }
+  if (highValue <= 0 || lowValue <= 0) {
+    return { ok: false, message: "Limites do ACWR devem ser maiores que zero." };
+  }
+  if (lowValue >= highValue) {
+    return { ok: false, message: "O limite baixo deve ser menor que o limite alto." };
+  }
+  return { ok: true, message: "", highValue, lowValue };
+};
+
 const buildClassPlan = (options: {
   classId: string;
   ageBand: (typeof ageBands)[number];
@@ -376,6 +391,7 @@ export default function PeriodizationScreen() {
   const [isSavingWeek, setIsSavingWeek] = useState(false);
   const [acwrRatio, setAcwrRatio] = useState<number | null>(null);
   const [acwrMessage, setAcwrMessage] = useState("");
+  const [acwrLimitError, setAcwrLimitError] = useState("");
   const [painAlert, setPainAlert] = useState("");
   const [painAlertDates, setPainAlertDates] = useState<string[]>([]);
   const [acwrLimits, setAcwrLimits] = useState({ high: "1.3", low: "0.8" });
@@ -674,12 +690,17 @@ export default function PeriodizationScreen() {
     acwrSavedRef.current = next;
   }, [selectedClass]);
 
+  useEffect(() => {
+    const validation = validateAcwrLimits(acwrLimits);
+    setAcwrLimitError(validation.ok ? "" : validation.message);
+  }, [acwrLimits.high, acwrLimits.low]);
+
   const persistAcwrLimits = useCallback(
     async (next: { high: string; low: string }) => {
       if (!selectedClassId) return;
-      const highValue = Number(next.high);
-      const lowValue = Number(next.low);
-      if (!Number.isFinite(highValue) || !Number.isFinite(lowValue)) return;
+      const validation = validateAcwrLimits(next);
+      if (!validation.ok) return;
+      const { highValue, lowValue } = validation;
       if (
         acwrSavedRef.current.high === next.high &&
         acwrSavedRef.current.low === next.low
@@ -754,10 +775,13 @@ export default function PeriodizationScreen() {
       if (!alive) return;
       const classLogs = logs.filter((log) => log.classId === selectedClassId);
       const duration = selectedClass?.durationMinutes ?? 60;
-      const highLimit =
-        Number.isFinite(Number(acwrLimits.high)) ? Number(acwrLimits.high) : 1.3;
-      const lowLimit =
-        Number.isFinite(Number(acwrLimits.low)) ? Number(acwrLimits.low) : 0.8;
+      const validation = validateAcwrLimits(acwrLimits);
+      if (!validation.ok) {
+        setAcwrRatio(null);
+        setAcwrMessage("");
+        return;
+      }
+      const { highValue: highLimit, lowValue: lowLimit } = validation;
       const weekKeyForDate = (value: string) => {
         const parsed = new Date(value);
         if (Number.isNaN(parsed.getTime())) return null;
@@ -2231,7 +2255,12 @@ export default function PeriodizationScreen() {
                 />
               </View>
             </View>
-            {acwrMessage ? (
+            {acwrLimitError ? (
+              <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                {acwrLimitError}
+              </Text>
+            ) : null}
+            {!acwrLimitError && acwrMessage ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {acwrMessage}
               </Text>
