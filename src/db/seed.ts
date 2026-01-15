@@ -420,6 +420,7 @@ type ClassPlanRow = {
 
 type SessionLogRow = {
   id: string;
+  client_id?: string | null;
   classid: string;
   rpe: number;
   technique: string;
@@ -1077,6 +1078,7 @@ export async function saveSessionLog(
   const allowQueue = options?.allowQueue !== false;
   const clientId = buildSessionLogClientId(log);
   const logId = log.id?.trim() || clientId;
+  const shouldPatchById = !!log.id?.trim() && !log.clientId?.trim();
   const pseValue =
     typeof (log as { PSE?: number }).PSE === "number"
       ? (log as { PSE?: number }).PSE
@@ -1092,6 +1094,25 @@ export async function saveSessionLog(
       : null;
 
   try {
+    if (shouldPatchById) {
+      await supabasePatch(
+        "/session_logs?id=eq." + encodeURIComponent(log.id || ""),
+        {
+          client_id: clientId,
+          classid: log.classId,
+          rpe: pseValue,
+          technique: log.technique,
+          attendance: log.attendance,
+          activity,
+          conclusion,
+          participants_count: participantsCount,
+          photos,
+          pain_score: log.painScore ?? null,
+          createdat: log.createdAt,
+        }
+      );
+      return;
+    }
     await supabasePost(
       "/session_logs?on_conflict=client_id",
       [
@@ -1140,11 +1161,13 @@ export async function getSessionLogByDate(
       encodeURIComponent(start) +
       "&createdat=lt." +
       encodeURIComponent(end.toISOString()) +
-      "&order=createdat.desc&limit=1"
+      "&order=client_id.desc.nullslast,createdat.desc&limit=1"
   );
   const row = rows[0];
   if (!row) return null;
   return {
+    id: row.id,
+    clientId: row.client_id ?? undefined,
     classId: row.classid,
     PSE: row.rpe,
     technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",

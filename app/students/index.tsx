@@ -411,11 +411,17 @@ export default function StudentsScreen() {
       setStudentFormError("Selecione a unidade e a turma.");
       return false;
     }
-    if (!classId || !name.trim()) return false;
+    if (!classId || !name.trim()) {
+      setStudentFormError("Preencha o nome do aluno.");
+      return false;
+    }
     setStudentFormError("");
     const resolvedAge =
       ageNumber ?? (birthDate ? calculateAge(birthDate) : null);
-    if (resolvedAge === null || Number.isNaN(resolvedAge)) return false;
+    if (resolvedAge === null || Number.isNaN(resolvedAge)) {
+      setStudentFormError("Informe a data de nascimento.");
+      return false;
+    }
     const nowIso = new Date().toISOString();
     const student: Student = {
       id: editingId ?? "s_" + Date.now(),
@@ -461,8 +467,8 @@ export default function StudentsScreen() {
     !!unit &&
     !!classId &&
     !!name.trim() &&
-    !!birthDate.trim() &&
-    ageNumber !== null;
+    ageNumber !== null &&
+    (!!birthDate.trim() || !!editingId);
 
   const isEditDirty = useMemo(() => {
     if (!editingId || !editSnapshot) return false;

@@ -66,6 +66,7 @@ export default function AttendanceScreen() {
   const [noteById, setNoteById] = useState<Record<string, string>>({});
   const [painById, setPainById] = useState<Record<string, number | undefined>>({});
   const [loadMessage, setLoadMessage] = useState("");
+  const [hasSaved, setHasSaved] = useState(false);
   const [baseline, setBaseline] = useState<{
     status: Record<string, "presente" | "faltou" | undefined>;
     note: Record<string, string>;
@@ -212,7 +213,7 @@ export default function AttendanceScreen() {
       message: "Chamada salva com sucesso.",
       variant: "success",
     });
-    router.replace("/");
+    setHasSaved(true);
   };
 
   const loadDate = async (value: string) => {
@@ -231,6 +232,7 @@ export default function AttendanceScreen() {
         setNoteById(baseNotes);
         setPainById(basePain);
         setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
+        setHasSaved(false);
         setLoadMessage(
           `Essa turma treina em ${formatDays(classDays)}. Selecione um desses dias.`
         );
@@ -247,6 +249,7 @@ export default function AttendanceScreen() {
       setNoteById(baseNotes);
       setPainById(basePain);
       setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
+      setHasSaved(false);
       setLoadMessage("Sem registros para essa data.");
       loadMessageTimer.current = setTimeout(() => {
         setLoadMessage("");
@@ -269,6 +272,7 @@ export default function AttendanceScreen() {
     setNoteById(finalNotes);
     setPainById(finalPain);
     setBaseline({ status: finalStatus, note: finalNotes, pain: finalPain });
+    setHasSaved(true);
     setLoadMessage("Historico carregado para essa data.");
     loadMessageTimer.current = setTimeout(() => {
       setLoadMessage("");
@@ -577,6 +581,21 @@ export default function AttendanceScreen() {
           label="Salvar chamada"
           onPress={handleSave}
           disabled={!isClassDay || !hasChanges}
+        />
+        <Button
+          label="Abrir relatorio"
+          variant="secondary"
+          disabled={!isClassDay || !hasSaved}
+          onPress={() => {
+            router.push({
+              pathname: "/class/[id]/session",
+              params: {
+                id: cls.id,
+                date,
+                tab: "relatorio",
+              },
+            });
+          }}
         />
       </View>
 

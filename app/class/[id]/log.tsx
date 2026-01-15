@@ -7,11 +7,12 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   getAttendanceByDate,
   getClassById,
+  getSessionLogByDate,
   getStudentsByClass,
   getTrainingPlans,
   saveSessionLog,
 } from "../../../src/db/seed";
-import type { ClassGroup } from "../../../src/core/models";
+import type { ClassGroup, SessionLog } from "../../../src/core/models";
 import { Button } from "../../../src/ui/Button";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -24,6 +25,8 @@ export default function LogScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const [cls, setCls] = useState<ClassGroup | null>(null);
+  const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
+  const hydratedKeyRef = useRef<string | null>(null);
 
   const [PSE, setPSE] = useState<number>(7);
   const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
@@ -133,11 +136,35 @@ export default function LogScreen() {
         if (alive) setCls(data);
       }
       if (!id) return;
-      const [attendanceRecords, students] = await Promise.all([
+      const [attendanceRecords, students, existingLog] = await Promise.all([
         getAttendanceByDate(id, sessionDate),
         getStudentsByClass(id),
+        getSessionLogByDate(id, sessionDate),
       ]);
       if (!alive) return;
+      const hydrateKey = `${id ?? ""}_${sessionDate}`;
+      if (hydratedKeyRef.current !== hydrateKey) {
+        hydratedKeyRef.current = hydrateKey;
+        if (existingLog) {
+          setSessionLog(existingLog);
+          setPSE(existingLog.PSE ?? 7);
+          setTechnique(
+            (existingLog.technique as "boa" | "ok" | "ruim") ?? "boa"
+          );
+          setActivity(existingLog.activity ?? "");
+          setConclusion(existingLog.conclusion ?? "");
+          setParticipantsCount(
+            typeof existingLog.participantsCount === "number"
+              ? String(existingLog.participantsCount)
+              : ""
+          );
+          setPhotos(existingLog.photos ?? "");
+        } else {
+          setSessionLog(null);
+        }
+      } else if (existingLog) {
+        setSessionLog(existingLog);
+      }
       if (attendanceRecords.length) {
         const present = attendanceRecords.filter(
           (record) => record.status === "presente"
@@ -194,6 +221,8 @@ export default function LogScreen() {
     const attendanceValue =
       typeof attendancePercent === "number" ? attendancePercent : 0;
     await saveSessionLog({
+      id: sessionLog?.id,
+      clientId: sessionLog?.clientId,
       classId: id,
       PSE,
       technique,
@@ -202,7 +231,7 @@ export default function LogScreen() {
       conclusion,
       participantsCount: parsedParticipants,
       photos,
-      createdAt,
+      createdAt: sessionLog?.createdAt ?? createdAt,
     });
     return dateValue ?? new Date().toISOString().slice(0, 10);
   };

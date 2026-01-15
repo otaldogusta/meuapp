@@ -347,9 +347,11 @@ export default function SessionScreen() {
       typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
         ? date
         : null;
-    const createdAt = dateValue
-      ? new Date(`${dateValue}T12:00:00`).toISOString()
-      : new Date().toISOString();
+    const createdAt =
+      sessionLog?.createdAt ??
+      (dateValue
+        ? new Date(`${dateValue}T12:00:00`).toISOString()
+        : new Date().toISOString());
     const participantsRaw = participantsCount.trim();
     const participantsValue = participantsRaw ? Number(participantsRaw) : Number.NaN;
     const parsedParticipants =
@@ -360,6 +362,8 @@ export default function SessionScreen() {
     const attendanceValue =
       typeof attendancePercent === "number" ? attendancePercent : 0;
     await saveSessionLog({
+      id: sessionLog?.id,
+      clientId: sessionLog?.clientId,
       classId: cls.id,
       PSE,
       technique,
@@ -380,6 +384,8 @@ export default function SessionScreen() {
       photos,
     });
     setSessionLog({
+      id: sessionLog?.id,
+      clientId: sessionLog?.clientId,
       classId: cls.id,
       PSE,
       technique,
