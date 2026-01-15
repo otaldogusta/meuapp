@@ -184,6 +184,13 @@ export default function SessionScreen() {
     setShowTechniquePicker(false);
   };
 
+  const handleApplyAutoActivity = () => {
+    if (!autoActivity.trim()) return;
+    if (activity.trim()) return;
+    setActivity(autoActivity);
+    closePickers();
+  };
+
   const syncPickerLayouts = () => {
     const hasPickerOpen = showPsePicker || showTechniquePicker;
     if (!hasPickerOpen) return;
@@ -308,26 +315,6 @@ export default function SessionScreen() {
         .join(" | ");
       if (!fallback) return;
       setAutoActivity(fallback);
-      if (!activity.trim()) setActivity(fallback);
-      if (
-        !sessionLog &&
-        reportBaseline.activity === "" &&
-        reportBaseline.conclusion === "" &&
-        reportBaseline.participantsCount === "" &&
-        reportBaseline.photos === "" &&
-        reportBaseline.PSE === 0 &&
-        reportBaseline.technique === "nenhum"
-      ) {
-        const nextActivity = activity.trim() ? activity : fallback;
-        setReportBaseline({
-          PSE,
-          technique,
-          activity: nextActivity,
-          conclusion,
-          participantsCount,
-          photos,
-        });
-      }
     })();
     return () => {
       alive = false;
@@ -379,6 +366,7 @@ export default function SessionScreen() {
       photos,
       createdAt,
     });
+    setActivity(activityValue);
     setReportBaseline({
       PSE,
       technique,
@@ -922,7 +910,7 @@ export default function SessionScreen() {
                                 fontWeight: isMeta ? "600" : "400",
                               }}
                             >
-                              {isMeta ? trimmed : `• ${trimmed}`}
+                              {isMeta ? trimmed : `- ${trimmed}`}
                             </Text>
                           );
                         })
@@ -1374,6 +1362,39 @@ export default function SessionScreen() {
               />
             </View>
             </View>
+            {autoActivity ? (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 6,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                  Preview do treino aplicado
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {autoActivity}
+                </Text>
+                <Pressable
+                  onPress={handleApplyAutoActivity}
+                  style={{
+                    alignSelf: "flex-start",
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: colors.primaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                    Aplicar do treino
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>

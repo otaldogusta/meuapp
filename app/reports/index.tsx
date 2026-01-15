@@ -211,6 +211,12 @@ export default function ReportsScreen() {
     });
   }, [classes, attendanceByClass]);
 
+  const avgPresenceByClass = useMemo(() => {
+    if (!classRows.length) return null;
+    const sum = classRows.reduce((acc, row) => acc + row.percent, 0);
+    return sum / classRows.length;
+  }, [classRows]);
+
   const exportCsv = () => {
     const rows = [
       ["date", "class", "student", "status", "note"],
@@ -269,6 +275,11 @@ export default function ReportsScreen() {
       label: "PSE medio",
       value: pseSummary.avg === null ? "--" : pseSummary.avg.toFixed(1),
       color: colors.warningBg,
+    },
+    {
+      label: "Media por turma",
+      value: avgPresenceByClass === null ? "--" : `${avgPresenceByClass.toFixed(0)}%`,
+      color: colors.secondaryBg,
     },
   ];
 

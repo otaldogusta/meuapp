@@ -371,10 +371,16 @@ export default function PeriodizationScreen() {
   const [editPSETarget, setEditPSETarget] = useState("");
   const [editSource, setEditSource] = useState<"AUTO" | "MANUAL">("AUTO");
   const [applyWeeks, setApplyWeeks] = useState<number[]>([]);
+  const [cycleFilter, setCycleFilter] = useState<"all" | "manual" | "auto">("all");
   const [isSavingWeek, setIsSavingWeek] = useState(false);
   const [acwrRatio, setAcwrRatio] = useState<number | null>(null);
   const [acwrMessage, setAcwrMessage] = useState("");
   const [painAlert, setPainAlert] = useState("");
+  const [painAlertDates, setPainAlertDates] = useState<string[]>([]);
+  const [acwrLimits, setAcwrLimits] = usePersistedState(
+    selectedClassId ? `acwr_limits_${selectedClassId}` : null,
+    { high: "1.3", low: "0.8" }
+  );
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showMesoPicker, setShowMesoPicker] = useState(false);
@@ -579,9 +585,10 @@ export default function PeriodizationScreen() {
 
   const filteredClasses = useMemo(() => {
     const selectedKey = normalizeUnitKey(selectedUnit);
-    const list = hasUnitSelected
-      ? classes.filter((item) => normalizeUnitKey(item.unit) === selectedKey)
-      : classes;
+    if (!hasUnitSelected) return [];
+    const list = classes.filter(
+      (item) => normalizeUnitKey(item.unit) === selectedKey
+    );
     return [...list].sort((a, b) => {
       const aRange = parseAgeBandRange(a.ageBand || a.name);
       const bRange = parseAgeBandRange(b.ageBand || b.name);
@@ -676,6 +683,7 @@ export default function PeriodizationScreen() {
       setAcwrRatio(null);
       setAcwrMessage("");
       setPainAlert("");
+      setPainAlertDates([]);
       return;
     }
     (async () => {
@@ -686,24 +694,51 @@ export default function PeriodizationScreen() {
       if (!alive) return;
       const classLogs = logs.filter((log) => log.classId === selectedClassId);
       const duration = selectedClass?.durationMinutes ?? 60;
+      const highLimit =
+        Number.isFinite(Number(acwrLimits.high)) ? Number(acwrLimits.high) : 1.3;
+      const lowLimit =
+        Number.isFinite(Number(acwrLimits.low)) ? Number(acwrLimits.low) : 0.8;
+      const weekKeyForDate = (value: string) => {
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return null;
+        parsed.setHours(0, 0, 0, 0);
+        const day = parsed.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        parsed.setDate(parsed.getDate() + diff);
+        return parsed.toISOString().slice(0, 10);
+      };
       const acuteStart = new Date();
       acuteStart.setDate(end.getDate() - 7);
       const acuteLoad = classLogs
         .filter((log) => new Date(log.createdAt) >= acuteStart)
         .reduce((sum, log) => sum + log.PSE * duration, 0);
-      const chronicLoad = classLogs.reduce(
-        (sum, log) => sum + log.PSE * duration,
-        0
-      ) / 4;
+      const weeklyTotals: Record<string, number> = {};
+      classLogs.forEach((log) => {
+        const key = weekKeyForDate(log.createdAt);
+        if (!key) return;
+        weeklyTotals[key] = (weeklyTotals[key] ?? 0) + log.PSE * duration;
+      });
+      const weeklyLoads = Object.values(weeklyTotals);
+      const chronicLoad = weeklyLoads.length
+        ? weeklyLoads.reduce((sum, value) => sum + value, 0) / weeklyLoads.length
+        : 0;
       if (chronicLoad > 0) {
         const ratio = Number((acuteLoad / chronicLoad).toFixed(2));
+        const acuteLabel = Math.round(acuteLoad);
+        const chronicLabel = Math.round(chronicLoad);
         setAcwrRatio(ratio);
-        if (ratio > 1.3) {
-          setAcwrMessage("Carga subiu mais de 30% nesta semana.");
-        } else if (ratio < 0.8) {
-          setAcwrMessage("Carga semanal abaixo do padrao recente.");
+        if (ratio > highLimit) {
+          setAcwrMessage(
+            `Carga subiu acima de ${highLimit}. (7d ${acuteLabel} / 28d ${chronicLabel})`
+          );
+        } else if (ratio < lowLimit) {
+          setAcwrMessage(
+            `Carga abaixo de ${lowLimit}. (7d ${acuteLabel} / 28d ${chronicLabel})`
+          );
         } else {
-          setAcwrMessage("Carga semanal dentro do esperado.");
+          setAcwrMessage(
+            `Carga dentro do esperado. (7d ${acuteLabel} / 28d ${chronicLabel})`
+          );
         }
       } else {
         setAcwrRatio(null);
@@ -714,17 +749,19 @@ export default function PeriodizationScreen() {
         .filter((log) => typeof log.painScore === "number")
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, 3);
-      const painStreak = painLogs.filter((log) => (log.painScore ?? 0) >= 2).length;
-      if (painStreak >= 3) {
+      const painHits = painLogs.filter((log) => (log.painScore ?? 0) >= 2);
+      if (painHits.length >= 3) {
         setPainAlert("Dor nivel 2+ por 3 registros. Considere avaliar com profissional.");
+        setPainAlertDates(painHits.map((log) => formatDisplayDate(log.createdAt)));
       } else {
         setPainAlert("");
+        setPainAlertDates([]);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [selectedClassId, selectedClass?.durationMinutes]);
+  }, [acwrLimits.high, acwrLimits.low, selectedClassId, selectedClass?.durationMinutes]);
 
   const weekPlans = useMemo(() => {
     const base = basePlans[ageBand] ?? basePlans["09-11"];
@@ -758,6 +795,12 @@ export default function PeriodizationScreen() {
     }
     return weeks;
   }, [ageBand, cycleLength, classPlans]);
+
+  const filteredWeekPlans = useMemo(() => {
+    if (cycleFilter === "all") return weekPlans;
+    const target = cycleFilter === "manual" ? "MANUAL" : "AUTO";
+    return weekPlans.filter((week) => week.source === target);
+  }, [cycleFilter, weekPlans]);
 
   const periodizationRows = useMemo(() => {
     if (!selectedClass) return [];
@@ -1656,7 +1699,11 @@ export default function PeriodizationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
               <View ref={classTriggerRef} style={{ position: "relative" }}>
                 <Pressable
-                  onPress={() => togglePicker("class")}
+                  onPress={() => {
+                    if (!hasUnitSelected) return;
+                    togglePicker("class");
+                  }}
+                  disabled={!hasUnitSelected}
                   onLayout={(event) => {
                     setClassPickerTop(event.nativeEvent.layout.height);
                   }}
@@ -1668,6 +1715,7 @@ export default function PeriodizationScreen() {
                     backgroundColor: colors.inputBg,
                     borderWidth: 1,
                     borderColor: colors.border,
+                    opacity: hasUnitSelected ? 1 : 0.6,
                   }}
                 >
                     <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
@@ -1886,6 +1934,28 @@ export default function PeriodizationScreen() {
               <Text style={{ color: colors.text, fontSize: 12, marginTop: 4 }}>
                 {painAlert}
               </Text>
+              {painAlertDates.length ? (
+                <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+                  Datas: {painAlertDates.join(" | ")}
+                </Text>
+              ) : null}
+              <Pressable
+                onPress={() => router.push({ pathname: "/reports" })}
+                style={{
+                  alignSelf: "flex-start",
+                  marginTop: 8,
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                  Abrir relatorios
+                </Text>
+              </Pressable>
             </View>
           ) : null}
         </View>
@@ -2016,7 +2086,7 @@ export default function PeriodizationScreen() {
                   </Text>
                 </View>
               );
-            })}
+              })}
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             {volumeOrder.map((level) => {
@@ -2037,6 +2107,68 @@ export default function PeriodizationScreen() {
                 </View>
                 );
               })}
+          </View>
+          <View style={{ gap: 10 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Limites de alerta (ACWR)
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                  Alto
+                </Text>
+                <TextInput
+                  value={acwrLimits.high}
+                  onChangeText={(value) =>
+                    setAcwrLimits((prev) => ({
+                      ...prev,
+                      high: value.replace(",", "."),
+                    }))
+                  }
+                  keyboardType="numeric"
+                  placeholder="1.3"
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 10,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                  Baixo
+                </Text>
+                <TextInput
+                  value={acwrLimits.low}
+                  onChangeText={(value) =>
+                    setAcwrLimits((prev) => ({
+                      ...prev,
+                      low: value.replace(",", "."),
+                    }))
+                  }
+                  keyboardType="numeric"
+                  placeholder="0.8"
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 10,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+            </View>
+            {acwrMessage ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {acwrMessage}
+              </Text>
+            ) : null}
           </View>
             </Animated.View>
           ) : null}
@@ -2112,9 +2244,57 @@ export default function PeriodizationScreen() {
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Semanas com foco e volume definido
           </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            {([
+              { id: "all", label: "Todas" },
+              { id: "auto", label: "Somente AUTO" },
+              { id: "manual", label: "Somente MANUAL" },
+            ] as const).map((item) => {
+              const active = cycleFilter === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => setCycleFilter(item.id)}
+                  style={{
+                    paddingVertical: 4,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: active ? colors.primaryText : colors.text,
+                      fontSize: 11,
+                      fontWeight: active ? "700" : "500",
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           {showCycleContent ? (
             <Animated.View style={[{ gap: 10 }, cycleAnimStyle]}>
-            {weekPlans.map((week, index) => (
+            {!selectedClass ? (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Selecione uma turma para editar o ciclo.
+                </Text>
+              </View>
+            ) : filteredWeekPlans.length ? (
+              filteredWeekPlans.map((week, index) => (
               <Pressable
                 key={`${week.week}-${index}`}
                 onPress={() => openWeekEditor(week.week)}
@@ -2248,7 +2428,22 @@ export default function PeriodizationScreen() {
                   ))}
                 </View>
               </Pressable>
-            ))}
+            ))
+            ) : (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Nenhuma semana encontrada para esse filtro.
+                </Text>
+              </View>
+            )}
             </Animated.View>
           ) : null}
         </View>
@@ -2379,7 +2574,7 @@ export default function PeriodizationScreen() {
             </>
           ) : (
             <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-              Nenhuma turma cadastrada.
+              {hasUnitSelected ? "Nenhuma turma cadastrada." : "Selecione uma unidade."}
             </Text>
           )}
         </AnchoredDropdown>
