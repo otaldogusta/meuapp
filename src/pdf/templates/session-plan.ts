@@ -169,7 +169,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         }
         <div class="card">
           <div class="label">Tempo total</div>
-          <div class="value">${esc(data.totalTime ?? "—")}</div>
+          <div class="value">${esc(data.totalTime ?? "-")}</div>
         </div>
         ${
           hasObjective
@@ -222,7 +222,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       }
 
       <div class="footer">
-        <div>Gerado pelo app • ${new Date().toLocaleDateString("pt-BR")}</div>
+        <div>Gerado pelo app - ${new Date().toLocaleDateString("pt-BR")}</div>
         <div class="signature">
           ${
             data.coachName

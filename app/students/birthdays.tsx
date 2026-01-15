@@ -211,7 +211,7 @@ export default function BirthdaysScreen() {
                     const cls = classes.find((item) => item.id === student.classId);
                     const unitName = unitLabel(cls?.unit);
                     const className = cls?.name ?? "Turma";
-                    return `${unitName} • ${className}`;
+                    return `${unitName} | ${className}`;
                   })()}
                 </Text>
               </View>

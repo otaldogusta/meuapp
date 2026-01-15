@@ -1,4 +1,6 @@
-# Welcome to your Expo app 👋
+# GoAtleta
+
+Uso o GoAtleta para planejar, registrar e acompanhar treinos com meus alunos.
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 

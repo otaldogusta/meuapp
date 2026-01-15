@@ -367,10 +367,10 @@ export default function Home() {
                 Proxima aula
               </Text>
               <Text style={{ color: colors.primaryText, opacity: 0.9 }}>
-                {nearestSummary.className} • {nearestSummary.unit}
+                {nearestSummary.className} | {nearestSummary.unit}
               </Text>
               <Text style={{ color: colors.primaryText, opacity: 0.8 }}>
-                {nearestSummary.dateLabel} • {nearestSummary.timeLabel}
+                {nearestSummary.dateLabel} | {nearestSummary.timeLabel}
               </Text>
             </View>
           ) : (

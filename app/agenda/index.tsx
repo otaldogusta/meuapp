@@ -147,7 +147,7 @@ export default function AgendaScreen() {
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
       "CALSCALE:GREGORIAN",
-      "PRODID:-//MeuApp//Agenda//PT",
+      "PRODID:-//GoAtleta//Agenda//PT",
     ];
 
     dates.forEach((date) => {

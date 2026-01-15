@@ -1164,21 +1164,28 @@ export default function PeriodizationScreen() {
       setShowUnitPicker(false);
       return;
     }
+    const nextKey = normalizeUnitKey(unit);
+    const currentKey = normalizeUnitKey(selectedUnit);
+    const changed = nextKey !== currentKey;
+
+    if (changed) {
+      setSelectedClassId("");
+      setAllowEmptyClass(true);
+      setUnitMismatchWarning("");
+    } else {
+      setAllowEmptyClass(false);
+    }
     setSelectedUnit(unit);
-    setAllowEmptyClass(false);
     setShowUnitPicker(false);
-    if (
-      selectedClass &&
-      normalizeUnitKey(selectedClass.unit) !== normalizeUnitKey(unit)
-    ) {
+    if (!changed && selectedClass && normalizeUnitKey(selectedClass.unit) !== nextKey) {
       setSelectedClassId("");
       setUnitMismatchWarning(
         "A turma selecionada pertence a outra unidade. Selecione uma turma desta unidade."
       );
-    } else {
+    } else if (!changed) {
       setUnitMismatchWarning("");
     }
-  }, [selectedClass]);
+  }, [selectedClass, selectedUnit]);
 
   const handleSelectClass = useCallback((cls: ClassGroup) => {
     setSelectedClassId(cls.id);

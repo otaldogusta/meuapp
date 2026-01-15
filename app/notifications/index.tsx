@@ -24,7 +24,7 @@ const UPDATE_URL =
   "https://u.expo.dev/a5b1cd35-0ae7-4c50-a12e-df9741e0dfca?channel-name=" +
   UPDATE_CHANNEL;
 const UPDATE_DEEPLINK =
-  "meuapp://expo-development-client/?url=" +
+  "goatleta://expo-development-client/?url=" +
   encodeURIComponent(UPDATE_URL);
 
 const isWeb = Platform.OS === "web";
@@ -197,7 +197,7 @@ export default function NotificationsScreen() {
             onPress={() =>
               Linking.openURL(
                 "https://qr.expo.dev/development-client?appScheme=" +
-                  encodeURIComponent("meuapp") +
+                  encodeURIComponent("goatleta") +
                   "&url=" +
                   encodeURIComponent(UPDATE_URL)
               )

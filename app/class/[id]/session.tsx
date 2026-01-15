@@ -189,7 +189,12 @@ export default function SessionScreen() {
     if (activity.trim()) return;
     setActivity(autoActivity);
     closePickers();
+    showSaveToast({
+      message: "Atividade preenchida a partir do treino.",
+      variant: "info",
+    });
   };
+  const canApplyAutoActivity = !!autoActivity.trim() && !activity.trim();
 
   const syncPickerLayouts = () => {
     const hasPickerOpen = showPsePicker || showTechniquePicker;
@@ -1381,18 +1386,33 @@ export default function SessionScreen() {
                 </Text>
                 <Pressable
                   onPress={handleApplyAutoActivity}
+                  disabled={!canApplyAutoActivity}
                   style={{
                     alignSelf: "flex-start",
                     paddingVertical: 6,
                     paddingHorizontal: 10,
                     borderRadius: 999,
-                    backgroundColor: colors.primaryBg,
+                    backgroundColor: canApplyAutoActivity
+                      ? colors.primaryBg
+                      : colors.secondaryBg,
+                    opacity: canApplyAutoActivity ? 1 : 0.6,
                   }}
                 >
-                  <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                  <Text
+                    style={{
+                      color: canApplyAutoActivity ? colors.primaryText : colors.muted,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
                     Aplicar do treino
                   </Text>
                 </Pressable>
+                {!canApplyAutoActivity ? (
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Limpe o campo para aplicar do treino.
+                  </Text>
+                ) : null}
               </View>
             ) : null}
 

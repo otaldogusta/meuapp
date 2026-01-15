@@ -965,7 +965,7 @@ export default function TrainingList() {
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   Aplicado:{" "}
                   {plan.applyDays?.length ? formatWeekdays(plan.applyDays) : ""}
-                  {plan.applyDays?.length && plan.applyDate ? " • " : ""}
+                  {plan.applyDays?.length && plan.applyDate ? " | " : ""}
                   {plan.applyDate ? formatShortDate(plan.applyDate) : ""}
                 </Text>
               ) : null}
