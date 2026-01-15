@@ -1,5 +1,12 @@
 import React from "react";
-import { Animated, ScrollView, StyleProp, View, ViewStyle } from "react-native";
+import {
+  Animated,
+  Dimensions,
+  ScrollView,
+  StyleProp,
+  View,
+  ViewStyle,
+} from "react-native";
 
 type Layout = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
@@ -32,9 +39,15 @@ export function AnchoredDropdown({
   if (!visible || !layout) return null;
 
   const left = container ? layout.x - container.x : layout.x;
-  const top = container
+  const defaultTop = container
     ? layout.y - container.y + layout.height + 8
     : layout.y + layout.height + 8;
+  const windowHeight = Dimensions.get("window").height;
+  const availableBottom = windowHeight - 24;
+  const top =
+    defaultTop + maxHeight > availableBottom
+      ? Math.max(8, defaultTop - layout.height - maxHeight)
+      : defaultTop;
 
   return (
     <Animated.View

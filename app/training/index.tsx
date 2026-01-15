@@ -65,6 +65,7 @@ import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { normalizeAgeBand, parseAgeBandRange, sortAgeBandList } from "../../src/core/age-band";
 
 const toLines = (value: string) =>
@@ -313,10 +314,7 @@ export default function TrainingList() {
     animatedStyle: templatesAnimStyle,
     isVisible: showTemplatesContent,
   } = useCollapsibleAnimation(showTemplates);
-  const [showAllClasses, setShowAllClasses] = usePersistedState<boolean>(
-    "training_show_all_classes_v1",
-    false
-  );
+  const [formUnit, setFormUnit] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
   const [showForm, setShowForm] = usePersistedState<boolean>(
     "training_show_form_v1",
@@ -331,6 +329,9 @@ export default function TrainingList() {
     isVisible: showSavedPlansContent,
   } = useCollapsibleAnimation(showSavedPlans);
   const [formY, setFormY] = useState(0);
+  const formContainerRef = useRef<View>(null);
+  const formUnitTriggerRef = useRef<View>(null);
+  const formClassTriggerRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const [scrollRequested, setScrollRequested] = useState(false);
   const {
@@ -388,6 +389,61 @@ export default function TrainingList() {
   const [applyPlan, setApplyPlan] = useState<TrainingPlan | null>(null);
   const [applyDays, setApplyDays] = useState<number[]>([]);
   const [applyDate, setApplyDate] = useState("");
+  const [showApplyUnitPicker, setShowApplyUnitPicker] = useState(false);
+  const [showApplyClassPicker, setShowApplyClassPicker] = useState(false);
+  const [showFormUnitPicker, setShowFormUnitPicker] = useState(false);
+  const [showFormClassPicker, setShowFormClassPicker] = useState(false);
+  const [applyContainerWindow, setApplyContainerWindow] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [formContainerWindow, setFormContainerWindow] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [applyUnitTriggerLayout, setApplyUnitTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [applyClassTriggerLayout, setApplyClassTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [formUnitTriggerLayout, setFormUnitTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [formClassTriggerLayout, setFormClassTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const applyContainerRef = useRef<View>(null);
+  const applyUnitTriggerRef = useRef<View>(null);
+  const applyClassTriggerRef = useRef<View>(null);
+  const {
+    animatedStyle: formUnitPickerAnimStyle,
+    isVisible: showFormUnitPickerContent,
+  } = useCollapsibleAnimation(showFormUnitPicker, { translateY: -6 });
+  const {
+    animatedStyle: formClassPickerAnimStyle,
+    isVisible: showFormClassPickerContent,
+  } = useCollapsibleAnimation(showFormClassPicker, { translateY: -6 });
+  const {
+    animatedStyle: applyUnitPickerAnimStyle,
+    isVisible: showApplyUnitPickerContent,
+  } = useCollapsibleAnimation(showApplyUnitPicker, { translateY: -6 });
+  const {
+    animatedStyle: applyClassPickerAnimStyle,
+    isVisible: showApplyClassPickerContent,
+  } = useCollapsibleAnimation(showApplyClassPicker, { translateY: -6 });
   const [handledApplyPlanId, setHandledApplyPlanId] = useState<string | null>(
     null
   );
@@ -437,6 +493,36 @@ export default function TrainingList() {
     if (!applyUnit) return sortedClasses;
     return sortedClasses.filter((item) => unitLabel(item.unit) === applyUnit);
   }, [applyUnit, sortedClasses]);
+  const classOptionsForForm = useMemo(() => {
+    if (!formUnit) return sortedClasses;
+    return sortedClasses.filter((item) => unitLabel(item.unit) === formUnit);
+  }, [formUnit, sortedClasses]);
+  const selectedApplyClass = useMemo(
+    () => classOptionsForUnit.find((item) => item.id === applyClassId) ?? null,
+    [applyClassId, classOptionsForUnit]
+  );
+  const selectedFormClass = useMemo(
+    () => classOptionsForForm.find((item) => item.id === classId) ?? null,
+    [classId, classOptionsForForm]
+  );
+
+  useEffect(() => {
+    if (!classId) return;
+    const selected = classes.find((item) => item.id === classId);
+    const selectedUnit = unitLabel(selected?.unit);
+    if (selectedUnit && selectedUnit !== formUnit) {
+      setFormUnit(selectedUnit);
+    }
+  }, [classId, classes, formUnit]);
+
+  useEffect(() => {
+    if (!formUnit || !classId) return;
+    const selected = classes.find((item) => item.id === classId);
+    if (!selected) return;
+    if (unitLabel(selected.unit) !== formUnit) {
+      setClassId("");
+    }
+  }, [formUnit, classId, classes]);
 
   useEffect(() => {
     if (!applyPlan) return;
@@ -536,7 +622,7 @@ export default function TrainingList() {
       startDate,
       endDate,
       location: classItem.unit || undefined,
-      notes: `Treino aplicado para ${classItem.name}.`,
+      notes: `Planejamento aplicado para ${classItem.name}.`,
     });
   };
 
@@ -982,7 +1068,7 @@ export default function TrainingList() {
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                  Aplicar treino
+                  Aplicar planejamento
                 </Text>
               </Pressable>
               <Pressable
@@ -1157,7 +1243,7 @@ export default function TrainingList() {
     const plan: TrainingPlan = {
       id: editingId ?? "t_" + Date.now(),
       classId,
-      title: title.trim() || "Treino sem titulo",
+      title: title.trim() || "Planejamento sem titulo",
       tags: tagsText
         .split(",")
         .map((tag) => tag.trim())
@@ -1202,10 +1288,12 @@ export default function TrainingList() {
     setWarmupTime("");
     setMainTime("");
     setCooldownTime("");
+    setFormUnit("");
     setEditingId(null);
     setEditingCreatedAt(null);
     setFormMode("plan");
     setShowForm(false);
+    closeFormPickers();
     await reload();
   };
 
@@ -1252,6 +1340,7 @@ export default function TrainingList() {
     setEditingTemplateCreatedAt(null);
     setFormMode("plan");
     setShowForm(false);
+    closeFormPickers();
     showSaveToast({ message: "Modelo salvo com sucesso.", variant: "success" });
   };
 
@@ -1267,6 +1356,7 @@ export default function TrainingList() {
     setMainTime(plan.mainTime);
     setCooldownTime(plan.cooldownTime);
     setClassId(plan.classId);
+    setFormUnit(unitLabel(classes.find((item) => item.id === plan.classId)?.unit));
     setFormMode("plan");
     setShowForm(true);
     setScrollRequested(true);
@@ -1274,10 +1364,10 @@ export default function TrainingList() {
 
   const onDelete = (plan: TrainingPlan) => {
     confirm({
-      title: "Excluir treino?",
+      title: "Excluir planejamento?",
       message: "Essa acao pode ser desfeita por alguns segundos.",
       confirmLabel: "Excluir",
-      undoMessage: "Treino excluido. Deseja desfazer?",
+      undoMessage: "Planejamento excluido. Deseja desfazer?",
       onOptimistic: () => {
         setItems((prev) => prev.filter((item) => item.id !== plan.id));
         if (editingId === plan.id) {
@@ -1288,7 +1378,7 @@ export default function TrainingList() {
       onConfirm: async () => {
         await measure("deleteTrainingPlan", () => deleteTrainingPlan(plan.id));
         await reload();
-        logAction("Excluir treino", { planId: plan.id, classId: plan.classId });
+        logAction("Excluir planejamento", { planId: plan.id, classId: plan.classId });
       },
       onUndo: async () => {
         await reload();
@@ -1527,12 +1617,72 @@ export default function TrainingList() {
     closeTemplateEditor();
   };
 
+  const toggleApplyPicker = (target: "unit" | "class") => {
+    setShowApplyUnitPicker((prev) => (target === "unit" ? !prev : false));
+    setShowApplyClassPicker((prev) => (target === "class" ? !prev : false));
+  };
+
+  const toggleFormPicker = (target: "unit" | "class") => {
+    requestAnimationFrame(() => syncFormPickerLayouts());
+    setShowFormUnitPicker((prev) => (target === "unit" ? !prev : false));
+    setShowFormClassPicker((prev) => (target === "class" ? !prev : false));
+  };
+
+  const closeApplyPickers = () => {
+    setShowApplyUnitPicker(false);
+    setShowApplyClassPicker(false);
+  };
+
+  const closeFormPickers = () => {
+    setShowFormUnitPicker(false);
+    setShowFormClassPicker(false);
+  };
+
+  const syncApplyPickerLayouts = () => {
+    if (!showApplyUnitPicker && !showApplyClassPicker) return;
+    requestAnimationFrame(() => {
+      if (showApplyUnitPicker) {
+        applyUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setApplyUnitTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showApplyClassPicker) {
+        applyClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setApplyClassTriggerLayout({ x, y, width, height });
+        });
+      }
+      applyContainerRef.current?.measureInWindow((x, y) => {
+        setApplyContainerWindow({ x, y });
+      });
+    });
+  };
+
+  const syncFormPickerLayouts = () => {
+    if (!showFormUnitPicker && !showFormClassPicker) return;
+    requestAnimationFrame(() => {
+      if (showFormUnitPicker) {
+        formUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setFormUnitTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showFormClassPicker) {
+        formClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setFormClassTriggerLayout({ x, y, width, height });
+        });
+      }
+      formContainerRef.current?.measureInWindow((x, y) => {
+        setFormContainerWindow({ x, y });
+      });
+    });
+  };
+
   const closeApplyModal = () => {
     setShowApplyModal(false);
     setShowApplyCloseConfirm(false);
     setApplyPlan(null);
     setShowApplyCalendar(false);
     setApplySnapshot(null);
+    closeApplyPickers();
   };
 
   const requestCloseApplyModal = () => {
@@ -1542,6 +1692,14 @@ export default function TrainingList() {
     }
     closeApplyModal();
   };
+
+  useEffect(() => {
+    syncApplyPickerLayouts();
+  }, [showApplyUnitPicker, showApplyClassPicker]);
+
+  useEffect(() => {
+    syncFormPickerLayouts();
+  }, [showFormUnitPicker, showFormClassPicker]);
 
   const saveTemplateEditor = async () => {
     const ageBand = templateAge.trim() || templateAgeBand;
@@ -1708,6 +1866,7 @@ export default function TrainingList() {
   const confirmCloseForm = () => {
     if (!isFormDirty) {
       setShowForm(false);
+      closeFormPickers();
       return;
     }
     confirmDialog({
@@ -1717,6 +1876,7 @@ export default function TrainingList() {
       cancelLabel: "Continuar",
       onConfirm: () => {
         setShowForm(false);
+        closeFormPickers();
         setEditingId(null);
         setEditingCreatedAt(null);
         setEditingTemplateId(null);
@@ -1768,6 +1928,8 @@ export default function TrainingList() {
     setScrollRequested(true);
     if (targetClassId) {
       setClassId(targetClassId);
+      const targetClass = classes.find((item) => item.id === targetClassId);
+      setFormUnit(unitLabel(targetClass?.unit));
     }
   }, [openForm, targetClassId, setShowForm]);
 
@@ -1790,6 +1952,10 @@ export default function TrainingList() {
     setScrollRequested(true);
     if (pendingPlanCreate.classId) {
       setClassId(pendingPlanCreate.classId);
+      const pendingClass = classes.find(
+        (item) => item.id === pendingPlanCreate.classId
+      );
+      setFormUnit(unitLabel(pendingClass?.unit));
     }
     setPendingPlanCreate(null);
   }, [pendingPlanCreate, setPendingPlanCreate, setShowForm]);
@@ -1856,7 +2022,7 @@ export default function TrainingList() {
         keyboardShouldPersistTaps="handled"
       >
         <ScreenHeader
-          title="Treinos"
+          title="Planejamento"
           subtitle="Aquecimento, parte principal e volta a calma"
         />
         <Pressable
@@ -1879,7 +2045,11 @@ export default function TrainingList() {
         </Pressable>
 
         <View
-          onLayout={(event) => setFormY(event.nativeEvent.layout.y)}
+          ref={formContainerRef}
+          onLayout={(event) => {
+            setFormY(event.nativeEvent.layout.y);
+            syncFormPickerLayouts();
+          }}
           style={[
             getSectionCardStyle(colors, "success"),
             { borderRadius: 20, borderLeftWidth: 3, borderLeftColor: "#ffffff" },
@@ -1896,6 +2066,7 @@ export default function TrainingList() {
                     setEditingTemplateCreatedAt(null);
                     setFormMode("plan");
                     setClassId("");
+                    setFormUnit("");
                     setTitle("");
                     setTagsText("");
                     setWarmup("");
@@ -1936,79 +2107,206 @@ export default function TrainingList() {
               style={[formAnimStyle, { gap: 10 }]}
             >
           <Text style={{ color: colors.muted }}>Selecione a turma</Text>
-          {showAllClasses ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {sortedClasses.map((item) => {
-                const active = item.id === classId;
-                    return (
-                      <Pressable
-                        key={item.id}
-                        onPress={() =>
-                          setClassId((prev) => (prev === item.id ? "" : item.id))
-                        }
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
-                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        }}
-                      >
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                        <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                          {item.name}
-                        </Text>
-                        <ClassGenderBadge gender={item.gender} />
-                      </View>
-                      </Pressable>
-                    );
-                  })}
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {sortedClasses.slice(0, 5).map((item) => {
-                  const active = item.id === classId;
-                    return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() =>
-                        setClassId((prev) => (prev === item.id ? "" : item.id))
-                      }
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                          borderRadius: 10,
-                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        }}
-                      >
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                          <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                            {item.name}
-                          </Text>
-                          <ClassGenderBadge gender={item.gender} />
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
+              <View ref={formUnitTriggerRef}>
+                <Pressable
+                  onPress={() => toggleFormPicker("unit")}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                    {formUnit || "Selecione uma unidade"}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={18}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showFormUnitPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
               </View>
-            </ScrollView>
-          )}
-          {sortedClasses.length > 5 ? (
+            </View>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
+              <View ref={formClassTriggerRef}>
+                <Pressable
+                  onPress={() => toggleFormPicker("class")}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ flex: 1, flexDirection: "row", gap: 8, alignItems: "center" }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                      {selectedFormClass?.name ?? "Selecione uma turma"}
+                    </Text>
+                    {selectedFormClass ? (
+                      <ClassGenderBadge gender={selectedFormClass.gender} />
+                    ) : null}
+                  </View>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={18}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showFormClassPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+          <AnchoredDropdown
+            visible={showFormUnitPickerContent}
+            layout={formUnitTriggerLayout}
+            container={formContainerWindow}
+            animationStyle={formUnitPickerAnimStyle}
+            zIndex={410}
+            maxHeight={220}
+            nestedScrollEnabled
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.inputBg,
+            }}
+            scrollContentStyle={{ padding: 4 }}
+          >
             <Pressable
               onPress={() => {
-                animateLayout();
-                setShowAllClasses((prev) => !prev);
+                setFormUnit("");
+                setClassId("");
+                closeFormPickers();
               }}
-              style={{ alignSelf: "flex-start", paddingVertical: 4 }}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 10,
+                borderRadius: 10,
+                margin: 6,
+                backgroundColor: !formUnit ? colors.primaryBg : "transparent",
+              }}
             >
-              <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                {showAllClasses ? "Ver menos turmas" : "Ver mais turmas"}
+              <Text
+                style={{
+                  color: !formUnit ? colors.primaryText : colors.text,
+                  fontSize: 12,
+                  fontWeight: !formUnit ? "700" : "500",
+                }}
+              >
+                Todas as unidades
               </Text>
             </Pressable>
-          ) : null}
+            {unitOptions.map((unit, index) => {
+              const active = formUnit === unit;
+              return (
+                <Pressable
+                  key={unit}
+                  onPress={() => {
+                    setFormUnit(unit);
+                    closeFormPickers();
+                  }}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    borderRadius: 10,
+                    margin: index === 0 ? 6 : 2,
+                    backgroundColor: active ? colors.primaryBg : "transparent",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: active ? colors.primaryText : colors.text,
+                      fontSize: 12,
+                      fontWeight: active ? "700" : "500",
+                    }}
+                  >
+                    {unit}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </AnchoredDropdown>
+          <AnchoredDropdown
+            visible={showFormClassPickerContent}
+            layout={formClassTriggerLayout}
+            container={formContainerWindow}
+            animationStyle={formClassPickerAnimStyle}
+            zIndex={410}
+            maxHeight={240}
+            nestedScrollEnabled
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.inputBg,
+            }}
+            scrollContentStyle={{ padding: 4 }}
+          >
+            {classOptionsForForm.length ? (
+              classOptionsForForm.map((item, index) => {
+                const active = classId === item.id;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => {
+                      setClassId(item.id);
+                      closeFormPickers();
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      margin: index === 0 ? 6 : 2,
+                      backgroundColor: active ? colors.primaryBg : "transparent",
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                      <Text
+                        style={{
+                          color: active ? colors.primaryText : colors.text,
+                          fontSize: 12,
+                          fontWeight: active ? "700" : "500",
+                        }}
+                      >
+                        {item.name}
+                      </Text>
+                      <ClassGenderBadge gender={item.gender} />
+                    </View>
+                  </Pressable>
+                );
+              })
+            ) : (
+              <View style={{ padding: 10 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Nenhuma turma cadastrada.
+                </Text>
+              </View>
+            )}
+          </AnchoredDropdown>
 
           <TextInput
-            placeholder="Titulo do treino"
+            placeholder="Titulo do planejamento"
             value={title}
             onChangeText={setTitle}
             placeholderTextColor={colors.placeholder}
@@ -2224,7 +2522,7 @@ export default function TrainingList() {
                 ? "Salvar modelo"
                 : editingId
                   ? "Salvar alteracoes"
-                  : "Salvar treino"}
+                  : "Salvar planejamento"}
             </Text>
           </Pressable>
           {editingId ? (
@@ -2244,7 +2542,9 @@ export default function TrainingList() {
                 setWarmupTime("");
                 setMainTime("");
                 setCooldownTime("");
+                setFormUnit("");
                 setShowForm(false);
+                closeFormPickers();
               }}
             />
               ) : null}
@@ -2376,7 +2676,7 @@ export default function TrainingList() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Treinos salvos
+                Planejamentos salvos
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {filteredItems.length}
@@ -2416,7 +2716,7 @@ export default function TrainingList() {
                         </View>
                         <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
                         <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {group.items.length} treinos
+                          {group.items.length} planejamentos
                         </Text>
                       </View>
                       <View style={{ gap: 12 }}>
@@ -2435,7 +2735,7 @@ export default function TrainingList() {
                 </View>
               ) : (
                 <Text style={{ color: colors.muted }}>
-                  Nenhum treino salvo ainda.
+                  Nenhum planejamento salvo ainda.
                 </Text>
               )}
             </Animated.View>
@@ -2889,7 +3189,7 @@ export default function TrainingList() {
         />
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-            Aplicar treino
+            Aplicar planejamento
           </Text>
           <Pressable
             onPress={requestCloseApplyModal}
@@ -2916,41 +3216,95 @@ export default function TrainingList() {
           nestedScrollEnabled
           showsVerticalScrollIndicator
         >
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {unitOptions.map((unit) => {
-                const active = applyUnit === unit;
-                return (
+          <View
+            ref={applyContainerRef}
+            onLayout={syncApplyPickerLayouts}
+            style={{ gap: 10, position: "relative" }}
+          >
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
+                <View ref={applyUnitTriggerRef}>
                   <Pressable
-                    key={unit}
-                    onPress={() => setApplyUnit(unit)}
+                    onPress={() => toggleApplyPicker("unit")}
                     style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
                     }}
                   >
-                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                      {unit}
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                      {applyUnit || "Selecione uma unidade"}
                     </Text>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={18}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showApplyUnitPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
                   </Pressable>
-                );
-              })}
+                </View>
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
+                <View ref={applyClassTriggerRef}>
+                  <Pressable
+                    onPress={() => toggleApplyPicker("class")}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <View style={{ flex: 1, flexDirection: "row", gap: 8, alignItems: "center" }}>
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {selectedApplyClass?.name ?? "Selecione uma turma"}
+                      </Text>
+                      {selectedApplyClass ? (
+                        <ClassGenderBadge gender={selectedApplyClass.gender} />
+                      ) : null}
+                    </View>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={18}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showApplyClassPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              </View>
             </View>
-          </ScrollView>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              {classOptionsForUnit.map((item) => {
-                const active = applyClassId === item.id;
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Dias da semana</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {weekdays.map((day) => {
+                const active = applyDays.includes(day.id);
                 return (
                   <Pressable
-                    key={item.id}
+                    key={day.id}
                     onPress={() =>
-                      setApplyClassId((prev) =>
-                        prev === item.id ? "" : item.id
+                      setApplyDays((prev) =>
+                        prev.includes(day.id)
+                          ? prev.filter((value) => value !== day.id)
+                          : [...prev, day.id].sort((a, b) => a - b)
                       )
                     }
                     style={{
@@ -2960,52 +3314,125 @@ export default function TrainingList() {
                       backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
                     }}
                   >
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                      <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                        {item.name}
-                      </Text>
-                      <ClassGenderBadge gender={item.gender} />
-                    </View>
+                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
+                      {day.label}
+                    </Text>
                   </Pressable>
                 );
               })}
             </View>
-          </ScrollView>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Dias da semana</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {weekdays.map((day) => {
-              const active = applyDays.includes(day.id);
-              return (
-                <Pressable
-                  key={day.id}
-                  onPress={() =>
-                    setApplyDays((prev) =>
-                      prev.includes(day.id)
-                        ? prev.filter((value) => value !== day.id)
-                        : [...prev, day.id].sort((a, b) => a - b)
-                    )
-                  }
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                    {day.label}
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Data especifica</Text>
+            <DateInput
+              value={applyDate}
+              onChange={(value) => {
+                setApplyDate(value);
+                closeApplyPickers();
+              }}
+              placeholder="Selecione a data"
+              onOpenCalendar={() => setShowApplyCalendar(true)}
+            />
+            <AnchoredDropdown
+              visible={showApplyUnitPickerContent}
+              layout={applyUnitTriggerLayout}
+              container={applyContainerWindow}
+              animationStyle={applyUnitPickerAnimStyle}
+              zIndex={420}
+              maxHeight={220}
+              nestedScrollEnabled
+              panelStyle={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.inputBg,
+              }}
+              scrollContentStyle={{ padding: 4 }}
+            >
+              {unitOptions.map((unit, index) => {
+                const active = applyUnit === unit;
+                return (
+                  <Pressable
+                    key={unit}
+                    onPress={() => {
+                      setApplyUnit(unit);
+                      closeApplyPickers();
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      margin: index === 0 ? 6 : 2,
+                      backgroundColor: active ? colors.primaryBg : "transparent",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.text,
+                        fontSize: 12,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {unit}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </AnchoredDropdown>
+            <AnchoredDropdown
+              visible={showApplyClassPickerContent}
+              layout={applyClassTriggerLayout}
+              container={applyContainerWindow}
+              animationStyle={applyClassPickerAnimStyle}
+              zIndex={420}
+              maxHeight={240}
+              nestedScrollEnabled
+              panelStyle={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.inputBg,
+              }}
+              scrollContentStyle={{ padding: 4 }}
+            >
+              {classOptionsForUnit.length ? (
+                classOptionsForUnit.map((item, index) => {
+                  const active = applyClassId === item.id;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => {
+                        setApplyClassId(item.id);
+                        closeApplyPickers();
+                      }}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 10,
+                        borderRadius: 10,
+                        margin: index === 0 ? 6 : 2,
+                        backgroundColor: active ? colors.primaryBg : "transparent",
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                        <Text
+                          style={{
+                            color: active ? colors.primaryText : colors.text,
+                            fontSize: 12,
+                            fontWeight: active ? "700" : "500",
+                          }}
+                        >
+                          {item.name}
+                        </Text>
+                        <ClassGenderBadge gender={item.gender} />
+                      </View>
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <View style={{ padding: 10 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Nenhuma turma cadastrada.
                   </Text>
-                </Pressable>
-              );
-            })}
+                </View>
+              )}
+            </AnchoredDropdown>
           </View>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Data especifica</Text>
-          <DateInput
-            value={applyDate}
-            onChange={setApplyDate}
-            placeholder="Selecione a data"
-            onOpenCalendar={() => setShowApplyCalendar(true)}
-          />
         </ScrollView>
         <Pressable
           onPress={async () => {
@@ -3020,7 +3447,7 @@ export default function TrainingList() {
             if (!applyDate) {
               Alert.alert(
                 "Informe a data",
-                "Digite a data especifica do treino."
+                "Digite a data especifica do planejamento."
               );
               return;
             }
@@ -3056,14 +3483,14 @@ export default function TrainingList() {
             await createCalendarEvent(updated);
             await reload();
             closeApplyModal();
-            logAction("Aplicar treino", {
+            logAction("Aplicar planejamento", {
               planId: updated.id,
               classId: applyClassId,
               applyDate,
               daysCount: applyDays.length,
             });
             showSaveToast({
-              message: "Treino aplicado com sucesso.",
+              message: "Planejamento aplicado com sucesso.",
               actionLabel: "Ver aula do dia",
               variant: "success",
               onAction: () => {
@@ -3106,7 +3533,7 @@ export default function TrainingList() {
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <View style={{ gap: 4, paddingRight: 12 }}>
             <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-              {actionPlan?.title ?? "Treino"}
+              {actionPlan?.title ?? "Planejamento"}
             </Text>
             <Text style={{ color: colors.muted }}>
               {actionPlan ? getClassName(actionPlan.classId) : ""}
@@ -3147,7 +3574,7 @@ export default function TrainingList() {
             }}
           >
             <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              Editar treino
+              Editar planejamento
             </Text>
           </Pressable>
           <Pressable
@@ -3210,7 +3637,7 @@ export default function TrainingList() {
             }}
           >
             <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
-              Excluir treino
+              Excluir planejamento
             </Text>
           </Pressable>
         </View>
