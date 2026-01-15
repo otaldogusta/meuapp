@@ -6,20 +6,24 @@ import { Ionicons } from "@expo/vector-icons";
 
 import {
   getAttendanceByDate,
+  getClassById,
   getStudentsByClass,
   getTrainingPlans,
   saveSessionLog,
 } from "../../../src/db/seed";
+import type { ClassGroup } from "../../../src/core/models";
 import { Button } from "../../../src/ui/Button";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
+import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 
 export default function LogScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
   const router = useRouter();
   const { colors } = useAppTheme();
+  const [cls, setCls] = useState<ClassGroup | null>(null);
 
   const [PSE, setPSE] = useState<number>(7);
   const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
@@ -56,6 +60,25 @@ export default function LogScreen() {
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
       : new Date().toISOString().slice(0, 10);
+  const formatDisplayDate = (value: string) => {
+    const parts = value.split("-");
+    if (parts.length !== 3) return value;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+  const parseTime = (value?: string) => {
+    if (!value) return null;
+    const match = value.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    return { hour: Number(match[1]), minute: Number(match[2]) };
+  };
+  const formatRange = (hour: number, minute: number, durationMinutes: number) => {
+    const start = String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+    const endTotal = hour * 60 + minute + durationMinutes;
+    const endHour = Math.floor(endTotal / 60) % 24;
+    const endMinute = endTotal % 60;
+    const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
+    return start + " - " + end;
+  };
   const weekdayId = useMemo(() => {
     const dateObj = new Date(sessionDate);
     const day = dateObj.getDay();
@@ -105,6 +128,10 @@ export default function LogScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
+      if (id) {
+        const data = await getClassById(id);
+        if (alive) setCls(data);
+      }
       if (!id) return;
       const [attendanceRecords, students] = await Promise.all([
         getAttendanceByDate(id, sessionDate),
@@ -193,15 +220,35 @@ export default function LogScreen() {
     });
   }
 
+  const className = cls?.name ?? "Turma";
+  const dateLabel = formatDisplayDate(sessionDate);
+  const parsedStart = parseTime(cls?.startTime);
+  const timeLabel =
+    parsedStart && cls?.durationMinutes
+      ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes)
+      : "";
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <View style={{ gap: 6, marginBottom: 12 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Relatorio da aula
-          </Text>
-          <Text style={{ color: colors.muted }}>Resumo da aula aplicada</Text>
-        </View>
+        {cls ? (
+          <ClassContextHeader
+            title="Relatorio da aula"
+            className={className}
+            unit={cls.unit}
+            ageBand={cls.ageBand}
+            gender={cls.gender}
+            dateLabel={dateLabel}
+            timeLabel={timeLabel}
+          />
+        ) : (
+          <View style={{ gap: 6, marginBottom: 12 }}>
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              Relatorio da aula
+            </Text>
+            <Text style={{ color: colors.muted }}>Resumo da aula aplicada</Text>
+          </View>
+        )}
         <View ref={containerRef} style={{ position: "relative", gap: 10 }}>
           <View
             style={{

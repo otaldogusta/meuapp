@@ -33,8 +33,7 @@ import { DateInput } from "../../../src/ui/DateInput";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { useSaveToast } from "../../../src/ui/save-toast";
-import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
-import { getUnitPalette, toRgba } from "../../../src/ui/unit-colors";
+import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 
@@ -45,6 +44,11 @@ const formatDate = (value: Date) => {
   return `${y}-${m}-${d}`;
 };
 
+const formatDisplayDate = (value: string) => {
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
 
 
 
@@ -74,6 +78,20 @@ export default function AttendanceScreen() {
   const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = useRef(false);
   const { showSaveToast } = useSaveToast();
+  const parseTime = (value?: string) => {
+    if (!value) return null;
+    const match = value.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    return { hour: Number(match[1]), minute: Number(match[2]) };
+  };
+  const formatRange = (hour: number, minute: number, durationMinutes: number) => {
+    const start = String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+    const endTotal = hour * 60 + minute + durationMinutes;
+    const endHour = Math.floor(endTotal / 60) % 24;
+    const endMinute = endTotal % 60;
+    const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
+    return start + " - " + end;
+  };
 
   useEffect(() => {
     let alive = true;
@@ -310,8 +328,12 @@ export default function AttendanceScreen() {
 
 
   if (!cls) return null;
-  const unitLabel = cls.unit?.trim() ? cls.unit.trim() : "Sem unidade";
-  const unitPalette = getUnitPalette(unitLabel, colors);
+  const dateLabel = formatDisplayDate(date);
+  const parsedStart = parseTime(cls.startTime);
+  const timeLabel =
+    parsedStart && cls.durationMinutes
+      ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes)
+      : "";
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
@@ -319,49 +341,15 @@ export default function AttendanceScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 12,
-        }}
-      >
-        <View>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Chamada
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
-            <View
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 10,
-                borderRadius: 999,
-                backgroundColor: toRgba(unitPalette.bg, 0.18),
-              }}
-            >
-              <Text style={{ color: unitPalette.text, fontSize: 12, fontWeight: "700" }}>
-                {unitLabel}
-              </Text>
-            </View>
-            <View
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 10,
-                borderRadius: 999,
-                backgroundColor: colors.inputBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                {cls.name}
-              </Text>
-            </View>
-            <ClassGenderBadge gender={cls.gender} />
-          </View>
-        </View>
-      </View>
+      <ClassContextHeader
+        title="Chamada"
+        className={cls.name}
+        unit={cls.unit}
+        ageBand={cls.ageBand}
+        gender={cls.gender}
+        dateLabel={dateLabel}
+        timeLabel={timeLabel}
+      />
 
       <View
         style={{
