@@ -1,33 +1,35 @@
+import * as Notifications from "expo-notifications";
+import {
+  Stack,
+  usePathname,
+  useRootNavigationState,
+  useRouter,
+} from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import {
   useEffect,
-  useRef } from "react";
-import { Platform,
+  useRef
+} from "react";
+import {
+  Platform,
   Text,
   View
 } from "react-native";
 import { Pressable } from "../src/ui/Pressable";
-import {
-  Stack,
-  usePathname,
-  useRouter,
-  useRootNavigationState,
-} from "expo-router";
-import * as Notifications from "expo-notifications";
-import { StatusBar } from "expo-status-bar";
 
-import { AppThemeProvider } from "../src/ui/app-theme";
-import { useAppTheme } from "../src/ui/app-theme";
-import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
-import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
-import { SaveToastProvider } from "../src/ui/save-toast";
-import { GuidanceProvider } from "../src/ui/guidance";
-import { addNotification } from "../src/notificationsInbox";
-import { AuthProvider, useAuth } from "../src/auth/auth";
 import * as Sentry from '@sentry/react-native';
-import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
+import { AuthProvider, useAuth } from "../src/auth/auth";
 import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
+import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
+import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
+import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
+import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
+import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
+import { GuidanceProvider } from "../src/ui/guidance";
+import { SaveToastProvider } from "../src/ui/save-toast";
+import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 
 Sentry.init({
   dsn: 'https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320',
@@ -261,15 +263,17 @@ function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
     <AuthProvider initialSession={data?.session ?? null}>
-      <ConfirmDialogProvider>
-        <ConfirmUndoProvider>
-          <SaveToastProvider>
-            <GuidanceProvider>
-              <RootLayoutContent />
-            </GuidanceProvider>
-          </SaveToastProvider>
-        </ConfirmUndoProvider>
-      </ConfirmDialogProvider>
+      <WhatsAppSettingsProvider>
+        <ConfirmDialogProvider>
+          <ConfirmUndoProvider>
+            <SaveToastProvider>
+              <GuidanceProvider>
+                <RootLayoutContent />
+              </GuidanceProvider>
+            </SaveToastProvider>
+          </ConfirmUndoProvider>
+        </ConfirmDialogProvider>
+      </WhatsAppSettingsProvider>
     </AuthProvider>
   );
 }

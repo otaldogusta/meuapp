@@ -6,5 +6,6 @@
   },
   "terminal.integrated.sendKeybindingsToShell": true,
   "chatgpt.openOnStartup": true,
-  "chatgpt.runCodexInWindowsSubsystemForLinux": true
+  "chatgpt.runCodexInWindowsSubsystemForLinux": true,
+  "chat.agent.maxRequests": 50
 }
