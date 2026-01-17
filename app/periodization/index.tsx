@@ -1,39 +1,39 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, ScrollView, Text, TextInput, View } from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Pressable } from "../../src/ui/Pressable";
 
-import { type ThemeColors, useAppTheme } from "../../src/ui/app-theme";
-import { getSectionCardStyle } from "../../src/ui/section-styles";
-import {
-  createClassPlan,
-  deleteClassPlansByClass,
-  getClasses,
-  getClassPlansByClass,
-  getSessionLogsByRange,
-  saveClassPlans,
-  updateClassPlan,
-  updateClassAcwrLimits,
-} from "../../src/db/seed";
+import { normalizeAgeBand, parseAgeBandRange } from "../../src/core/age-band";
 import type { ClassGroup, ClassPlan } from "../../src/core/models";
-import { ModalSheet } from "../../src/ui/ModalSheet";
-import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { getUnitPalette } from "../../src/ui/unit-colors";
-import { usePersistedState } from "../../src/ui/use-persisted-state";
-import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
-import { useGuidance } from "../../src/ui/guidance";
+import { normalizeUnitKey } from "../../src/core/unit-key";
+import {
+    createClassPlan,
+    deleteClassPlansByClass,
+    getClasses,
+    getClassPlansByClass,
+    getSessionLogsByRange,
+    saveClassPlans,
+    updateClassAcwrLimits,
+    updateClassPlan,
+} from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
-import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
-import { useConfirmDialog } from "../../src/ui/confirm-dialog";
-import { normalizeAgeBand, parseAgeBandRange } from "../../src/core/age-band";
-import { normalizeUnitKey } from "../../src/core/unit-key";
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
-import { periodizationHtml } from "../../src/pdf/templates/periodization";
 import { PeriodizationDocument } from "../../src/pdf/periodization-document";
+import { periodizationHtml } from "../../src/pdf/templates/periodization";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { type ThemeColors, useAppTheme } from "../../src/ui/app-theme";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useGuidance } from "../../src/ui/guidance";
+import { ModalSheet } from "../../src/ui/ModalSheet";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { getUnitPalette } from "../../src/ui/unit-colors";
+import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 type VolumeLevel = "baixo" | "medio" | "alto";
 
@@ -2873,6 +2873,7 @@ export default function PeriodizationScreen() {
             </View>
           </View>
 
+          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
           <Pressable
             onPress={() => {
               if (!selectedClass || !selectedDayDate) return;
@@ -2968,12 +2969,12 @@ export default function PeriodizationScreen() {
       <ModalSheet
         visible={showWeekEditor}
         onClose={() => setShowWeekEditor(false)}
-        cardStyle={[modalCardStyle, { paddingBottom: 12 }]}
+        cardStyle={[modalCardStyle, { paddingBottom: 12, maxHeight: "92%" }]}
         position="center"
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
           <View>
-            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
               {"Semana " + editingWeek}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -2996,142 +2997,180 @@ export default function PeriodizationScreen() {
             </Text>
           </Pressable>
         </View>
-        <ScrollView
-          contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
-          style={{ maxHeight: "92%" }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-        >
-          <TextInput
-            placeholder="Fase (ex: Base, Recuperacao)"
-            value={editPhase}
-            onChangeText={setEditPhase}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Tema (ex: Manchete, Saque)"
-            value={editTheme}
-            onChangeText={setEditTheme}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Foco tecnico"
-            value={editTechnicalFocus}
-            onChangeText={setEditTechnicalFocus}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Foco fisico"
-            value={editPhysicalFocus}
-            onChangeText={setEditPhysicalFocus}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Restricoes / regras"
-            value={editConstraints}
-            onChangeText={setEditConstraints}
-            multiline
-            textAlignVertical="top"
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              minHeight: 84,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Formato MV (ex: 2x2, 3x3)"
-            value={editMvFormat}
-            onChangeText={setEditMvFormat}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Warmup profile"
-            value={editWarmupProfile}
-            onChangeText={setEditWarmupProfile}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="PSE alvo (0-10, ex: 3-4)"
-            value={editPSETarget}
-            onChangeText={setEditPSETarget}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Saltos alvo (ex: 20-40)"
-            value={editJumpTarget}
-            onChangeText={setEditJumpTarget}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
+        <View style={{ gap: 10, paddingBottom: 12, marginTop: 16, paddingHorizontal: 12 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Fase</Text>
+              <TextInput
+                placeholder="Fase (ex: Base, Recuperacao)"
+                value={editPhase}
+                onChangeText={setEditPhase}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Tema</Text>
+              <TextInput
+                placeholder="Tema (ex: Manchete, Saque)"
+                value={editTheme}
+                onChangeText={setEditTheme}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Foco técnico</Text>
+              <TextInput
+                placeholder="Foco tecnico"
+                value={editTechnicalFocus}
+                onChangeText={setEditTechnicalFocus}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Foco físico</Text>
+              <TextInput
+                placeholder="Foco fisico"
+                value={editPhysicalFocus}
+                onChangeText={setEditPhysicalFocus}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+          </View>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Restrições</Text>
+            <TextInput
+              placeholder="Restricoes / regras"
+              value={editConstraints}
+              onChangeText={setEditConstraints}
+              multiline
+              textAlignVertical="top"
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                minHeight: 84,
+                color: colors.inputText,
+                fontSize: 13,
+              }}
+            />
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Formato MV</Text>
+              <TextInput
+                placeholder="Formato MV (ex: 2x2, 3x3)"
+                value={editMvFormat}
+                onChangeText={setEditMvFormat}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Warmup profile</Text>
+              <TextInput
+                placeholder="Warmup profile"
+                value={editWarmupProfile}
+                onChangeText={setEditWarmupProfile}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Jump target</Text>
+              <TextInput
+                placeholder="Saltos alvo (ex: 20-40)"
+                value={editJumpTarget}
+                onChangeText={setEditJumpTarget}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>PSE target</Text>
+              <TextInput
+                placeholder="PSE alvo (0-10, ex: 3-4)"
+                value={editPSETarget}
+                onChangeText={setEditPSETarget}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            </View>
+          </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {(["AUTO", "MANUAL"] as const).map((value) => {
               const active = editSource === value;
@@ -3289,11 +3328,11 @@ export default function PeriodizationScreen() {
               </Text>
             </Pressable>
           </View>
+          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
           <Pressable
             onPress={handleSaveWeek}
             disabled={isSavingWeek}
             style={{
-              marginTop: 6,
               paddingVertical: 10,
               borderRadius: 12,
               alignItems: "center",
@@ -3304,7 +3343,7 @@ export default function PeriodizationScreen() {
               {isSavingWeek ? "Salvando..." : "Salvar plano"}
             </Text>
           </Pressable>
-        </ScrollView>
+        </View>
       </ModalSheet>
     </SafeAreaView>
   );

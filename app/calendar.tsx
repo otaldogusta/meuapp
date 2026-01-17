@@ -1,33 +1,35 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
-import { Animated,
-  ScrollView,
-  Text,
-  View
-} from "react-native";
-import { Pressable } from "../src/ui/Pressable";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-  getClasses,
-  getTrainingPlans,
-  updateTrainingPlan,
-} from "../src/db/seed";
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
+import {
+    Animated,
+    ScrollView,
+    Text,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../src/ui/Pressable";
+
 import type { ClassGroup, TrainingPlan } from "../src/core/models";
-import { useAppTheme } from "../src/ui/app-theme";
-import { usePersistedState } from "../src/ui/use-persisted-state";
-import { useModalCardStyle } from "../src/ui/use-modal-card-style";
-import { ModalSheet } from "../src/ui/ModalSheet";
-import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { normalizeUnitKey } from "../src/core/unit-key";
-import { useSaveToast } from "../src/ui/save-toast";
+import {
+    getClasses,
+    getTrainingPlans,
+    updateTrainingPlan,
+} from "../src/db/seed";
+import { useAppTheme } from "../src/ui/app-theme";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
+import { ModalSheet } from "../src/ui/ModalSheet";
+import { useSaveToast } from "../src/ui/save-toast";
+import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
+import { useModalCardStyle } from "../src/ui/use-modal-card-style";
+import { usePersistedState } from "../src/ui/use-persisted-state";
 
 const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
 const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
@@ -931,7 +933,7 @@ export default function CalendarScreen() {
               {filteredApplyPlans.length ? (
                 <ScrollView
                   contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
-                  style={{ maxHeight: "94%" }}
+                  style={{ maxHeight: "92%" }}
                   keyboardShouldPersistTaps="handled"
                   nestedScrollEnabled
                   showsVerticalScrollIndicator

@@ -1,52 +1,53 @@
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
-import {
-  Animated,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { Ionicons } from "@expo/vector-icons";
-
+import { useRouter } from "expo-router";
 import {
-  getClasses,
-  getStudents,
-  saveStudent,
-  updateStudent,
-  deleteStudent,
-} from "../../src/db/seed";
+    memo,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
+import {
+    Animated,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { Pressable } from "../../src/ui/Pressable";
+
 import type { ClassGroup, Student } from "../../src/core/models";
-import { Button } from "../../src/ui/Button";
-import { animateLayout } from "../../src/ui/animate-layout";
-import { useAppTheme } from "../../src/ui/app-theme";
-import { usePersistedState } from "../../src/ui/use-persisted-state";
-import { useConfirmUndo } from "../../src/ui/confirm-undo";
-import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import {
+    deleteStudent,
+    getClasses,
+    getStudents,
+    saveStudent,
+    updateStudent,
+} from "../../src/db/seed";
 import { notifyBirthdays } from "../../src/notifications";
+import { logAction } from "../../src/observability/breadcrumbs";
+import { measure } from "../../src/observability/perf";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { Button } from "../../src/ui/Button";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
+import { ModalSheet } from "../../src/ui/ModalSheet";
+import { ScreenHeader } from "../../src/ui/ScreenHeader";
+import { animateLayout } from "../../src/ui/animate-layout";
+import { useAppTheme } from "../../src/ui/app-theme";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { ModalSheet } from "../../src/ui/ModalSheet";
-import { ScreenHeader } from "../../src/ui/ScreenHeader";
-import { logAction } from "../../src/observability/breadcrumbs";
-import { measure } from "../../src/observability/perf";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
-import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 export default function StudentsScreen() {
   const router = useRouter();
@@ -354,7 +355,7 @@ export default function StudentsScreen() {
     });
   }, [classes]);
   const guardianRelationOptions = useMemo(
-    () => ["Pai", "Mae", "Tia", "Avo", "Irmao", "Irma", "Responsavel", "Outro"],
+    () => ["Pai", "Mae", "Tia", "Avo", "Irmao", "Irma", "Outro"],
     []
   );
 
@@ -1516,7 +1517,7 @@ export default function StudentsScreen() {
       <ModalSheet
         visible={showEditModal}
         onClose={requestCloseEditModal}
-        cardStyle={[editModalCardStyle, { paddingBottom: 20 }]}
+        cardStyle={[editModalCardStyle, { maxHeight: "92%", paddingBottom: 20 }]}
         position="center"
       >
         <ConfirmCloseOverlay
@@ -1527,8 +1528,8 @@ export default function StudentsScreen() {
             closeEditModal();
           }}
         />
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Editar aluno
           </Text>
           <Pressable
@@ -1547,40 +1548,35 @@ export default function StudentsScreen() {
             </Text>
           </Pressable>
         </View>
-        <View ref={editContainerRef} style={{ position: "relative" }}>
-        <ScrollView
-          contentContainerStyle={{ gap: 10, paddingBottom: 32 }}
-          style={{ maxHeight: "94%" }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-          onScroll={syncEditPickerLayouts}
-          scrollEventThrottle={16}
-        >
-              <TextInput
-                placeholder="Nome do aluno"
-                value={name}
-                onChangeText={setName}
-                onBlur={() => setName(formatName(name))}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+        <View ref={editContainerRef} style={{ paddingHorizontal: 12, marginTop: 16, gap: 4 }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Unidade</Text>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
+                  <TextInput
+                    placeholder="Nome do aluno"
+                    value={name}
+                    onChangeText={setName}
+                    onBlur={() => setName(formatName(name))}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 10,
+                      fontSize: 13,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
                   <View ref={editUnitTriggerRef}>
                     <Pressable
                       onPress={() => toggleEditPicker("unit")}
                       style={selectFieldStyle}
                     >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                         {unit || "Selecione a unidade"}
                       </Text>
                       <Ionicons
@@ -1592,14 +1588,16 @@ export default function StudentsScreen() {
                     </Pressable>
                   </View>
                 </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Turma</Text>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
                   <View ref={editClassTriggerRef}>
                     <Pressable
                       onPress={() => toggleEditPicker("class")}
                       style={selectFieldStyle}
                     >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                         {selectedClassName || "Selecione a turma"}
                       </Text>
                       <Ionicons
@@ -1623,7 +1621,7 @@ export default function StudentsScreen() {
                 </Text>
               ) : null}
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
                   <DateInput
                     value={birthDate}
                     onChange={setBirthDate}
@@ -1636,7 +1634,7 @@ export default function StudentsScreen() {
                       : "Idade calculada automaticamente"}
                   </Text>
                 </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
                   <TextInput
                     placeholder="Telefone"
                     value={phone}
@@ -1646,7 +1644,8 @@ export default function StudentsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      padding: 12,
+                      padding: 10,
+                      fontSize: 13,
                       borderRadius: 12,
                       backgroundColor: colors.inputBg,
                       color: colors.inputText,
@@ -1655,7 +1654,8 @@ export default function StudentsScreen() {
                 </View>
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do responsavel</Text>
                   <TextInput
                     placeholder="Nome do responsavel"
                     value={guardianName}
@@ -1665,17 +1665,16 @@ export default function StudentsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      padding: 12,
+                      padding: 10,
+                      fontSize: 13,
                       borderRadius: 12,
                       backgroundColor: colors.inputBg,
                       color: colors.inputText,
                     }}
                   />
                 </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Telefone do responsavel</Text>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do responsavel</Text>
                   <TextInput
                     placeholder="Telefone do responsavel"
                     value={guardianPhone}
@@ -1685,21 +1684,22 @@ export default function StudentsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      padding: 12,
+                      padding: 10,
+                      fontSize: 13,
                       borderRadius: 12,
                       backgroundColor: colors.inputBg,
                       color: colors.inputText,
                     }}
                   />
                 </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Parentesco</Text>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
                   <View ref={editGuardianRelationTriggerRef}>
                     <Pressable
                       onPress={() => toggleEditPicker("guardianRelation")}
                       style={selectFieldStyle}
                     >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                         {guardianRelation || "Selecione"}
                       </Text>
                       <Ionicons
@@ -1716,6 +1716,7 @@ export default function StudentsScreen() {
                   </View>
                 </View>
               </View>
+              <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
                   onPress={async () => {
@@ -1776,7 +1777,7 @@ export default function StudentsScreen() {
                   </Text>
                 </Pressable>
               ) : null}
-        </ScrollView>
+        </View>
         <AnchoredDropdown
           visible={showEditUnitPickerContent}
           layout={editUnitTriggerLayout}
@@ -1867,7 +1868,6 @@ export default function StudentsScreen() {
             />
           ))}
         </AnchoredDropdown>
-        </View>
       </ModalSheet>
       <DatePickerModal
         visible={showCalendar}

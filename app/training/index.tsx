@@ -1,72 +1,72 @@
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
-import {
-  Alert,
-  Animated,
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Share,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
-import * as Calendar from "expo-calendar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
+import * as Calendar from "expo-calendar";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-  saveTrainingPlan,
-  getTrainingPlans,
-  getClasses,
-  updateTrainingPlan,
-  deleteTrainingPlan,
-  getTrainingTemplates,
-  saveTrainingTemplate,
-  updateTrainingTemplate,
-  deleteTrainingTemplate,
-  getHiddenTemplates,
-  hideTrainingTemplate,
-} from "../../src/db/seed";
+    memo,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
+import {
+    Alert,
+    Animated,
+    FlatList,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Share,
+    Text,
+    TextInput,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../../src/ui/Pressable";
+
+import { normalizeAgeBand, parseAgeBandRange, sortAgeBandList } from "../../src/core/age-band";
 import type {
-  ClassGroup,
-  TrainingPlan,
-  TrainingTemplate,
-  HiddenTemplate,
+    ClassGroup,
+    HiddenTemplate,
+    TrainingPlan,
+    TrainingTemplate,
 } from "../../src/core/models";
 import { trainingTemplates } from "../../src/core/trainingTemplates";
-import { Button } from "../../src/ui/Button";
-import { Card } from "../../src/ui/Card";
-import { animateLayout } from "../../src/ui/animate-layout";
-import { DatePickerModal } from "../../src/ui/DatePickerModal";
-import { DateInput } from "../../src/ui/DateInput";
-import { usePersistedState } from "../../src/ui/use-persisted-state";
+import {
+    deleteTrainingPlan,
+    deleteTrainingTemplate,
+    getClasses,
+    getHiddenTemplates,
+    getTrainingPlans,
+    getTrainingTemplates,
+    hideTrainingTemplate,
+    saveTrainingPlan,
+    saveTrainingTemplate,
+    updateTrainingPlan,
+    updateTrainingTemplate,
+} from "../../src/db/seed";
 import { notifyTrainingSaved } from "../../src/notifications";
-import { useAppTheme } from "../../src/ui/app-theme";
-import { useConfirmUndo } from "../../src/ui/confirm-undo";
-import { useConfirmDialog } from "../../src/ui/confirm-dialog";
-import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
-import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
-import { getSectionCardStyle } from "../../src/ui/section-styles";
-import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
-import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { useSaveToast } from "../../src/ui/save-toast";
-import { ModalSheet } from "../../src/ui/ModalSheet";
-import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
-import { normalizeAgeBand, parseAgeBandRange, sortAgeBandList } from "../../src/core/age-band";
+import { animateLayout } from "../../src/ui/animate-layout";
+import { useAppTheme } from "../../src/ui/app-theme";
+import { Button } from "../../src/ui/Button";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
+import { DateInput } from "../../src/ui/DateInput";
+import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { ModalSheet } from "../../src/ui/ModalSheet";
+import { useSaveToast } from "../../src/ui/save-toast";
+import { ScreenHeader } from "../../src/ui/ScreenHeader";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
+import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 const toLines = (value: string) =>
   value
@@ -334,6 +334,9 @@ export default function TrainingList() {
   const [formMode, setFormMode] = useState<"plan" | "template">("plan");
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [editingTemplateCreatedAt, setEditingTemplateCreatedAt] = useState<string | null>(null);
+  const [planningTab, setPlanningTab] = useState<
+    "formulario" | "salvos" | "modelos"
+  >("formulario");
   const [templateEditorSource, setTemplateEditorSource] = useState<"built" | "custom">(
     "custom"
   );
@@ -1982,33 +1985,68 @@ export default function TrainingList() {
           title="Planejamento"
           subtitle="Aquecimento, parte principal e volta a calma"
         />
-        <Pressable
-          onPress={() => router.push({ pathname: "/training/import" })}
-          style={{
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-            borderRadius: 14,
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Importar planejamento (CSV)
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-            Cole o CSV e revise antes de salvar
-          </Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {[
+            { id: "formulario" as const, label: "Formulario" },
+            { id: "salvos" as const, label: "Planejamentos salvos" },
+            { id: "modelos" as const, label: "Modelos prontos" },
+          ].map((tab) => {
+            const selected = planningTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setPlanningTab(tab.id)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: selected ? colors.primaryBg : "transparent",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    color: selected ? colors.primaryText : colors.text,
+                    fontWeight: "700",
+                    fontSize: 11,
+                  }}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
-        <View
-          ref={formContainerRef}
-          onLayout={(event) => {
-            setFormY(event.nativeEvent.layout.y);
-            syncFormPickerLayouts();
-          }}
-          style={{ gap: 12 }}
-        >
+        {planningTab === "formulario" && (
+        <>
+          <Pressable
+            onPress={() => router.push({ pathname: "/training/import" })}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Importar planejamento (CSV)
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+              Cole o CSV e revise antes de salvar
+            </Text>
+          </Pressable>
+
+          <View
+            ref={formContainerRef}
+            onLayout={(event) => {
+              setFormY(event.nativeEvent.layout.y);
+              syncFormPickerLayouts();
+            }}
+            style={{ gap: 12 }}
+          >
           <View style={{ gap: 10 }}>
           <Text style={{ color: colors.muted }}>Selecione a turma</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -2436,7 +2474,10 @@ export default function TrainingList() {
               ) : null}
             </View>
         </View>
+        </>
+        )}
 
+        {planningTab === "modelos" && (
         <View style={getSectionCardStyle(colors, "info")}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Modelos prontos
@@ -2539,7 +2580,9 @@ export default function TrainingList() {
               </Animated.View>
           ) : null}
         </View>
+        )}
 
+        {planningTab === "salvos" && (
         <View style={getSectionCardStyle(colors, "warning")}>
           <Pressable
             onPress={() => {
@@ -2626,12 +2669,13 @@ export default function TrainingList() {
             </Animated.View>
           ) : null}
         </View>
+        )}
       </ScrollView>
       </KeyboardAvoidingView>
       <ModalSheet
         visible={showTemplateEditor}
         onClose={requestCloseTemplateEditor}
-        cardStyle={[templateEditorCardStyle, { paddingBottom: 12 }]}
+        cardStyle={[templateEditorCardStyle, { maxHeight: "92%", paddingBottom: 12 }]}
         position="center"
       >
         <ConfirmCloseOverlay
@@ -2642,7 +2686,7 @@ export default function TrainingList() {
             closeTemplateEditor();
           }}
         />
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Editar modelo
           </Text>
@@ -2664,7 +2708,7 @@ export default function TrainingList() {
             </Text>
           </Pressable>
         </View>
-        <ScrollView
+        <View
           contentContainerStyle={{
             gap: 10,
             paddingVertical: 10,
@@ -2673,55 +2717,67 @@ export default function TrainingList() {
               templateEditorKeyboardHeight +
               12,
           }}
-          style={{ maxHeight: "94%" }}
+          style={{ gap: 6, paddingHorizontal: 12, marginTop: 16 }}
           keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
         >
-              <TextInput
-                placeholder="Titulo do modelo"
-                value={templateTitle}
-                onChangeText={setTemplateTitle}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              <TextInput
-                placeholder="Faixa etaria (ex: 10-12)"
-                value={templateAge}
-                onChangeText={setTemplateAge}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              <TextInput
-                placeholder="Tags (opcional, separe por virgula)"
-                value={templateTags}
-                onChangeText={setTemplateTags}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Titulo do modelo</Text>
+                  <TextInput
+                    placeholder="Titulo do modelo"
+                    value={templateTitle}
+                    onChangeText={setTemplateTitle}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 10,
+                      borderRadius: 10,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                      fontSize: 13,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
+                  <TextInput
+                    placeholder="Faixa etaria (ex: 10-12)"
+                    value={templateAge}
+                    onChangeText={setTemplateAge}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 10,
+                      borderRadius: 10,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                      fontSize: 13,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Tags (opcional)</Text>
+                <TextInput
+                  placeholder="Tags (opcional, separe por virgula)"
+                  value={templateTags}
+                  onChangeText={setTemplateTags}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 10,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              </View>
               {templateSuggestions.length > 0 && hasTemplateContent ? (
-                <>
+                <View style={{ gap: 6 }}>
                   <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={{ flexDirection: "row", gap: 8 }}>
@@ -2747,116 +2803,132 @@ export default function TrainingList() {
                       ))}
                     </View>
                   </ScrollView>
-                </>
+                </View>
               ) : null}
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <TextInput
-                  placeholder="Aquecimento (1 por linha)"
-                  value={templateWarmup}
-                  onChangeText={setTemplateWarmup}
-                  multiline
-                  placeholderTextColor={colors.placeholder}
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Aquecimento</Text>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TextInput
+                    placeholder="Aquecimento (1 por linha)"
+                    value={templateWarmup}
+                    onChangeText={setTemplateWarmup}
+                    multiline
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingHorizontal: 8,
+                      paddingVertical: 14,
+                      borderRadius: 10,
+                      minHeight: 60,
+                      backgroundColor: colors.inputBg,
+                      textAlignVertical: "center",
+                      color: colors.inputText,
+                      fontSize: 13,
+                    }}
+                  />
+                  <TextInput
+                    placeholder="Tempo (ex: 10')"
+                    value={templateWarmupTime}
+                    onChangeText={setTemplateWarmupTime}
+                    placeholderTextColor={colors.placeholder}
                   style={{
-                    flex: 1,
+                    width: 110,
                     borderWidth: 1,
                     borderColor: colors.border,
-                    paddingHorizontal: 8,
-                    paddingVertical: 14,
+                    padding: 10,
                     borderRadius: 10,
-                    minHeight: 60,
                     backgroundColor: colors.inputBg,
-                    textAlignVertical: "center",
                     color: colors.inputText,
+                    fontSize: 13,
                   }}
                 />
-                <TextInput
-                  placeholder="Tempo (ex: 10')"
-                  value={templateWarmupTime}
-                  onChangeText={setTemplateWarmupTime}
-                  placeholderTextColor={colors.placeholder}
-                style={{
-                  width: 110,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+                </View>
               </View>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <TextInput
-                  placeholder="Parte principal (1 por linha)"
-                  value={templateMain}
-                  onChangeText={setTemplateMain}
-                  multiline
-                  placeholderTextColor={colors.placeholder}
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Parte principal</Text>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TextInput
+                    placeholder="Parte principal (1 por linha)"
+                    value={templateMain}
+                    onChangeText={setTemplateMain}
+                    multiline
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingHorizontal: 8,
+                      paddingVertical: 20,
+                      borderRadius: 10,
+                      minHeight: 80,
+                      backgroundColor: colors.inputBg,
+                      textAlignVertical: "center",
+                      color: colors.inputText,
+                      fontSize: 13,
+                    }}
+                  />
+                  <TextInput
+                    placeholder="Tempo (ex: 40')"
+                    value={templateMainTime}
+                    onChangeText={setTemplateMainTime}
+                    placeholderTextColor={colors.placeholder}
                   style={{
-                    flex: 1,
+                    width: 110,
                     borderWidth: 1,
                     borderColor: colors.border,
-                    paddingHorizontal: 8,
-                    paddingVertical: 20,
+                    padding: 10,
                     borderRadius: 10,
-                    minHeight: 80,
                     backgroundColor: colors.inputBg,
-                    textAlignVertical: "center",
                     color: colors.inputText,
+                    fontSize: 13,
                   }}
                 />
-                <TextInput
-                  placeholder="Tempo (ex: 40')"
-                  value={templateMainTime}
-                  onChangeText={setTemplateMainTime}
-                  placeholderTextColor={colors.placeholder}
-                style={{
-                  width: 110,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+                </View>
               </View>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <TextInput
-                  placeholder="Volta a calma (1 por linha)"
-                  value={templateCooldown}
-                  onChangeText={setTemplateCooldown}
-                  multiline
-                  placeholderTextColor={colors.placeholder}
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Volta a calma</Text>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TextInput
+                    placeholder="Volta a calma (1 por linha)"
+                    value={templateCooldown}
+                    onChangeText={setTemplateCooldown}
+                    multiline
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingHorizontal: 8,
+                      paddingVertical: 14,
+                      borderRadius: 10,
+                      minHeight: 60,
+                      backgroundColor: colors.inputBg,
+                      textAlignVertical: "center",
+                      color: colors.inputText,
+                      fontSize: 13,
+                    }}
+                  />
+                  <TextInput
+                    placeholder="Tempo (ex: 5')"
+                    value={templateCooldownTime}
+                    onChangeText={setTemplateCooldownTime}
+                    placeholderTextColor={colors.placeholder}
                   style={{
-                    flex: 1,
+                    width: 110,
                     borderWidth: 1,
                     borderColor: colors.border,
-                    paddingHorizontal: 8,
-                    paddingVertical: 14,
+                    padding: 10,
                     borderRadius: 10,
-                    minHeight: 60,
                     backgroundColor: colors.inputBg,
-                    textAlignVertical: "center",
                     color: colors.inputText,
+                    fontSize: 13,
                   }}
                 />
-                <TextInput
-                  placeholder="Tempo (ex: 5')"
-                  value={templateCooldownTime}
-                  onChangeText={setTemplateCooldownTime}
-                  placeholderTextColor={colors.placeholder}
-                style={{
-                  width: 110,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+                </View>
               </View>
+              <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
               <View
                 onLayout={(event) => {
                   const next = Math.round(event.nativeEvent.layout.height);
@@ -2933,7 +3005,7 @@ export default function TrainingList() {
                   </Text>
                 </Pressable>
               </View>
-        </ScrollView>
+        </View>
       </ModalSheet>
       <ModalSheet
         visible={Boolean(selectedPlan)}

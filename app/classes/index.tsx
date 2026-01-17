@@ -1,42 +1,40 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
   TextInput,
-  View,
   Vibration,
+  View
 } from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
-import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import { Pressable } from "../../src/ui/Pressable";
 
-import { deleteClassCascade, getClasses, saveClass } from "../../src/db/seed";
 import type { ClassGroup } from "../../src/core/models";
-import { animateLayout } from "../../src/ui/animate-layout";
-import { Button } from "../../src/ui/Button";
-import { DateInput } from "../../src/ui/DateInput";
-import { getSectionCardStyle } from "../../src/ui/section-styles";
-import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
-import { usePersistedState } from "../../src/ui/use-persisted-state";
-import { useAppTheme } from "../../src/ui/app-theme";
-import { useConfirmDialog } from "../../src/ui/confirm-dialog";
-import { getUnitPalette } from "../../src/ui/unit-colors";
 import { normalizeUnitKey } from "../../src/core/unit-key";
-import { ModalSheet } from "../../src/ui/ModalSheet";
-import { updateClass } from "../../src/db/seed";
-import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { DatePickerModal } from "../../src/ui/DatePickerModal";
-import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { animateLayout } from "../../src/ui/animate-layout";
+import { useAppTheme } from "../../src/ui/app-theme";
+import { Button } from "../../src/ui/Button";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
+import { DateInput } from "../../src/ui/DateInput";
+import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { ModalSheet } from "../../src/ui/ModalSheet";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { getUnitPalette } from "../../src/ui/unit-colors";
+import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 export default function ClassesScreen() {
   const router = useRouter();
@@ -46,6 +44,7 @@ export default function ClassesScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
 
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  type SelectOptionValue = string | number;
   const formatDays = (days: number[]) =>
     days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
   const formatIsoDate = (value: Date) => {
@@ -55,30 +54,23 @@ export default function ClassesScreen() {
     return `${y}-${m}-${d}`;
   };
 
-  const [showNew, setShowNew] = usePersistedState<boolean>(
-    "classes_show_new_v1",
-    false
-  );
-  const {
-    animatedStyle: newFormAnimStyle,
-    isVisible: showNewContent,
-  } = useCollapsibleAnimation(showNew);
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");
-  const [newModality, setNewModality] = useState<ClassGroup["modality"]>("voleibol");
-  const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
-  const [newGender, setNewGender] = useState<ClassGroup["gender"]>("misto");
-  const [newGoal, setNewGoal] = useState<ClassGroup["goal"]>("Fundamentos");
-  const [newStartTime, setNewStartTime] = useState("14:00");
-  const [newDuration, setNewDuration] = useState("60");
+  const [newModality, setNewModality] = useState<ClassGroup["modality"] | "">("");
+  const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"] | "">("");
+  const [newGender, setNewGender] = useState<ClassGroup["gender"] | "">("");
+  const [newGoal, setNewGoal] = useState<ClassGroup["goal"] | "">("");
+  const [newStartTime, setNewStartTime] = useState("");
+  const [newDuration, setNewDuration] = useState("");
   const [newDays, setNewDays] = useState<number[]>([]);
-  const [newMvLevel, setNewMvLevel] = useState("MV1");
+  const [newMvLevel, setNewMvLevel] = useState("");
   const [newCycleStartDate, setNewCycleStartDate] = useState("");
-  const [newCycleLengthWeeks, setNewCycleLengthWeeks] = useState(12);
+  const [newCycleLengthWeeks, setNewCycleLengthWeeks] = useState(0);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
   const [editModality, setEditModality] = useState<ClassGroup["modality"]>("voleibol");
@@ -91,13 +83,80 @@ export default function ClassesScreen() {
   const [editMvLevel, setEditMvLevel] = useState("MV1");
   const [editCycleStartDate, setEditCycleStartDate] = useState("");
   const [editCycleLengthWeeks, setEditCycleLengthWeeks] = useState(12);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateCloseConfirm, setShowCreateCloseConfirm] = useState(false);
+  const [mainTab, setMainTab] = useState<"lista" | "criar">("lista");
+  const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
+  const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomDuration, setEditShowCustomDuration] = useState(false);
   const [editShowAllAges, setEditShowAllAges] = useState(false);
   const [editShowAllGoals, setEditShowAllGoals] = useState(false);
+  const [showEditDurationPicker, setShowEditDurationPicker] = useState(false);
+  const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
+  const [showEditMvLevelPicker, setShowEditMvLevelPicker] = useState(false);
+  const [showEditAgeBandPicker, setShowEditAgeBandPicker] = useState(false);
+  const [showEditGenderPicker, setShowEditGenderPicker] = useState(false);
+  const [showEditModalityPicker, setShowEditModalityPicker] = useState(false);
+  const [showEditGoalPicker, setShowEditGoalPicker] = useState(false);
+  const [editDurationTriggerLayout, setEditDurationTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editCycleLengthTriggerLayout, setEditCycleLengthTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editMvLevelTriggerLayout, setEditMvLevelTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editAgeBandTriggerLayout, setEditAgeBandTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editGenderTriggerLayout, setEditGenderTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editModalityTriggerLayout, setEditModalityTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editGoalTriggerLayout, setEditGoalTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const editDurationTriggerRef = useRef<View>(null);
+  const editCycleLengthTriggerRef = useRef<View>(null);
+  const editMvLevelTriggerRef = useRef<View>(null);
+  const editAgeBandTriggerRef = useRef<View>(null);
+  const editGenderTriggerRef = useRef<View>(null);
+  const editModalityTriggerRef = useRef<View>(null);
+  const editGoalTriggerRef = useRef<View>(null);
+  const editContainerRef = useRef<View>(null);
+  const [editContainerWindow, setEditContainerWindow] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const editModalCardStyle = useModalCardStyle({
-    maxHeight: Platform.OS === "web" ? "85%" : "100%",
+    maxHeight: Platform.OS === "web" ? "92%" : "100%",
   });
   const [suppressNextPress, setSuppressNextPress] = useState(false);
   const [showCustomDuration, setShowCustomDuration] = usePersistedState<boolean>(
@@ -250,6 +309,20 @@ export default function ClassesScreen() {
     useCollapsibleAnimation(showModalityPicker);
   const { animatedStyle: goalPickerAnimStyle, isVisible: showGoalPickerContent } =
     useCollapsibleAnimation(showGoalPicker);
+  const { animatedStyle: editDurationPickerAnimStyle, isVisible: showEditDurationPickerContent } =
+    useCollapsibleAnimation(showEditDurationPicker);
+  const { animatedStyle: editCycleLengthPickerAnimStyle, isVisible: showEditCycleLengthPickerContent } =
+    useCollapsibleAnimation(showEditCycleLengthPicker);
+  const { animatedStyle: editMvLevelPickerAnimStyle, isVisible: showEditMvLevelPickerContent } =
+    useCollapsibleAnimation(showEditMvLevelPicker);
+  const { animatedStyle: editAgeBandPickerAnimStyle, isVisible: showEditAgeBandPickerContent } =
+    useCollapsibleAnimation(showEditAgeBandPicker);
+  const { animatedStyle: editGenderPickerAnimStyle, isVisible: showEditGenderPickerContent } =
+    useCollapsibleAnimation(showEditGenderPicker);
+  const { animatedStyle: editModalityPickerAnimStyle, isVisible: showEditModalityPickerContent } =
+    useCollapsibleAnimation(showEditModalityPicker);
+  const { animatedStyle: editGoalPickerAnimStyle, isVisible: showEditGoalPickerContent } =
+    useCollapsibleAnimation(showEditGoalPicker);
 
   const unitLabel = useCallback(
     (value?: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
@@ -309,6 +382,15 @@ export default function ClassesScreen() {
     const filterKey = normalizeUnitKey(unitFilter);
     return classes.filter((item) => unitKey(item.unit) === filterKey);
   }, [classes, unitFilter, unitKey]);
+
+  const unitRows = useMemo(() => {
+    const size = 3;
+    const rows: string[][] = [];
+    for (let i = 0; i < units.length; i += size) {
+      rows.push(units.slice(i, i + size));
+    }
+    return rows;
+  }, [units]);
 
   const goalSuggestions = useMemo(() => {
     const key = normalizeUnitKey(newUnit);
@@ -486,6 +568,31 @@ export default function ClassesScreen() {
 
   const saveNewClass = async () => {
     if (!newName.trim()) return;
+    if (!newModality) {
+      setFormError("Selecione a modalidade.");
+      Vibration.vibrate(40);
+      return;
+    }
+    if (!newAgeBand) {
+      setFormError("Selecione a faixa etaria.");
+      Vibration.vibrate(40);
+      return;
+    }
+    if (!newGender) {
+      setFormError("Selecione o genero.");
+      Vibration.vibrate(40);
+      return;
+    }
+    if (!newGoal) {
+      setFormError("Selecione o objetivo.");
+      Vibration.vibrate(40);
+      return;
+    }
+    if (!newMvLevel) {
+      setFormError("Selecione o nivel.");
+      Vibration.vibrate(40);
+      return;
+    }
     const timeValue = newStartTime.trim();
     if (!isValidTime(timeValue)) {
       setFormError("Horario invalido. Use HH:MM.");
@@ -510,7 +617,7 @@ export default function ClassesScreen() {
         await saveClass({
           name: newName.trim(),
           unit: newUnit.trim() || "Sem unidade",
-          modality: newModality ?? "voleibol",
+          modality: newModality,
           ageBand: newAgeBand,
           gender: newGender,
           daysOfWeek: newDays,
@@ -522,25 +629,115 @@ export default function ClassesScreen() {
         cycleLengthWeeks: cycleValue,
       });
         Vibration.vibrate(60);
-        setNewName("");
-        setNewUnit("");
-        setNewModality("voleibol");
-        setNewAgeBand("08-09");
-      setNewGender("misto");
-      setNewGoal("Fundamentos");
-      setNewDays([]);
-      setNewStartTime("14:00");
-      setNewDuration("60");
-      setNewMvLevel("MV1");
-      setNewCycleStartDate("");
-      setNewCycleLengthWeeks(12);
-      setShowNew(false);
+        resetCreateForm();
       await loadClasses();
       router.back();
     } finally {
       setSaving(false);
     }
   };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setShowEditCloseConfirm(false);
+    setEditingClass(null);
+  };
+
+  const requestCloseEditModal = () => {
+    if (isEditDirty) {
+      setShowEditCloseConfirm(true);
+      return;
+    }
+    closeEditModal();
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    setShowCreateCloseConfirm(false);
+  };
+
+  const requestCloseCreateModal = () => {
+    if (isCreateDirty) {
+      setShowCreateCloseConfirm(true);
+      return;
+    }
+    closeCreateModal();
+  };
+
+  const isCreateDirty = useMemo(() => {
+    return (
+      newName.trim() !== "" ||
+      newUnit.trim() !== "" ||
+      newModality !== "" ||
+      newAgeBand !== "" ||
+      newGender !== "" ||
+      newGoal !== "" ||
+      newStartTime.trim() !== "" ||
+      newDuration.trim() !== "" ||
+      newDays.length > 0 ||
+      newMvLevel !== "" ||
+      newCycleStartDate.trim() !== "" ||
+      newCycleLengthWeeks !== 0
+    );
+  }, [
+    newName,
+    newUnit,
+    newModality,
+    newAgeBand,
+    newGender,
+    newGoal,
+    newStartTime,
+    newDuration,
+    newDays,
+    newMvLevel,
+    newCycleStartDate,
+    newCycleLengthWeeks,
+  ]);
+
+  const resetCreateForm = useCallback(() => {
+    setNewName("");
+    setNewUnit("");
+    setNewModality("");
+    setNewAgeBand("");
+    setNewGender("");
+    setNewGoal("");
+    setNewStartTime("");
+    setNewDuration("");
+    setNewDays([]);
+    setNewMvLevel("");
+    setNewCycleStartDate("");
+    setNewCycleLengthWeeks(0);
+    setFormError("");
+    setShowCustomDuration(false);
+    setShowAllAges(false);
+    setShowAllGoals(false);
+    setShowDurationPicker(false);
+    setShowCycleLengthPicker(false);
+    setShowMvLevelPicker(false);
+    setShowAgeBandPicker(false);
+    setShowGenderPicker(false);
+    setShowModalityPicker(false);
+    setShowGoalPicker(false);
+  }, []);
+
+  const requestSwitchMainTab = useCallback(
+    (nextTab: "lista" | "criar") => {
+      if (nextTab === mainTab) return;
+      if (mainTab === "criar" && isCreateDirty) {
+        setPendingMainTab(nextTab);
+        setShowCreateTabConfirm(true);
+        return;
+      }
+      if (nextTab === "criar") {
+        resetCreateForm();
+      }
+      if (mainTab === "criar" && !isCreateDirty) {
+        resetCreateForm();
+      }
+      setMainTab(nextTab);
+    },
+    [isCreateDirty, mainTab, resetCreateForm]
+  );
 
   const openEditModal = useCallback((item: ClassGroup) => {
     setEditingClass(item);
@@ -562,6 +759,38 @@ export default function ClassesScreen() {
     setEditShowAllGoals(false);
     setShowEditModal(true);
   }, []);
+
+  const isEditDirty = useMemo(() => {
+    if (!editingClass) return false;
+    return (
+      editingClass.name !== editName ||
+      (editingClass.unit ?? "") !== editUnit ||
+      inferModality(editingClass) !== editModality ||
+      (editingClass.ageBand ?? "08-09") !== editAgeBand ||
+      (editingClass.gender ?? "misto") !== editGender ||
+      (editingClass.goal ?? "Fundamentos") !== editGoal ||
+      (editingClass.startTime ?? "14:00") !== editStartTime ||
+      String(editingClass.durationMinutes ?? 60) !== editDuration ||
+      JSON.stringify(editingClass.daysOfWeek ?? []) !== JSON.stringify(editDays) ||
+      (editingClass.mvLevel ?? "MV1") !== editMvLevel ||
+      (editingClass.cycleStartDate ?? "") !== editCycleStartDate ||
+      (editingClass.cycleLengthWeeks ?? 12) !== editCycleLengthWeeks
+    );
+  }, [
+    editingClass,
+    editName,
+    editUnit,
+    editModality,
+    editAgeBand,
+    editGender,
+    editGoal,
+    editStartTime,
+    editDuration,
+    editDays,
+    editMvLevel,
+    editCycleStartDate,
+    editCycleLengthWeeks,
+  ]);
 
   const toggleEditDay = (value: number) => {
     setEditDays((prev) =>
@@ -765,6 +994,176 @@ export default function ClassesScreen() {
     },
     [customOptionLabel, showAllGoals]
   );
+
+  const toggleEditPicker = useCallback(
+    (
+      target:
+        | "duration"
+        | "cycle"
+        | "level"
+        | "age"
+        | "gender"
+        | "modality"
+        | "goal"
+    ) => {
+      setShowEditDurationPicker((prev) => (target === "duration" ? !prev : false));
+      setShowEditCycleLengthPicker((prev) => (target === "cycle" ? !prev : false));
+      setShowEditMvLevelPicker((prev) => (target === "level" ? !prev : false));
+      setShowEditAgeBandPicker((prev) => (target === "age" ? !prev : false));
+      setShowEditGenderPicker((prev) => (target === "gender" ? !prev : false));
+      setShowEditModalityPicker((prev) => (target === "modality" ? !prev : false));
+      setShowEditGoalPicker((prev) => (target === "goal" ? !prev : false));
+    },
+    []
+  );
+
+  const handleEditSelectDuration = useCallback(
+    (value: SelectOptionValue) => {
+      if (value === customOptionLabel) {
+        animateLayout();
+        setEditShowCustomDuration(true);
+        setShowEditDurationPicker(false);
+        return;
+      }
+      if (editShowCustomDuration) {
+        animateLayout();
+        setEditShowCustomDuration(false);
+      }
+      setEditDuration(String(value));
+      setShowEditDurationPicker(false);
+    },
+    [customOptionLabel, editShowCustomDuration]
+  );
+
+  const handleEditSelectCycleLength = useCallback((value: SelectOptionValue) => {
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(parsed)) setEditCycleLengthWeeks(parsed);
+    setShowEditCycleLengthPicker(false);
+  }, []);
+
+  const handleEditSelectMvLevel = useCallback((value: SelectOptionValue) => {
+    setEditMvLevel(String(value));
+    setShowEditMvLevelPicker(false);
+  }, []);
+
+  const handleEditSelectAgeBand = useCallback(
+    (value: SelectOptionValue) => {
+      if (value === customOptionLabel) {
+        animateLayout();
+        setEditShowAllAges(true);
+        setShowEditAgeBandPicker(false);
+        return;
+      }
+      if (editShowAllAges) {
+        animateLayout();
+        setEditShowAllAges(false);
+      }
+      setEditAgeBand(String(value));
+      setShowEditAgeBandPicker(false);
+    },
+    [customOptionLabel, editShowAllAges]
+  );
+
+  const handleEditSelectGender = useCallback((value: SelectOptionValue) => {
+    setEditGender(value as ClassGroup["gender"]);
+    setShowEditGenderPicker(false);
+  }, []);
+
+  const handleEditSelectModality = useCallback((value: SelectOptionValue) => {
+    setEditModality(value as ClassGroup["modality"]);
+    setShowEditModalityPicker(false);
+  }, []);
+
+  const handleEditSelectGoal = useCallback(
+    (value: SelectOptionValue) => {
+      if (value === customOptionLabel) {
+        animateLayout();
+        setEditShowAllGoals(true);
+        setShowEditGoalPicker(false);
+        return;
+      }
+      if (editShowAllGoals) {
+        animateLayout();
+        setEditShowAllGoals(false);
+      }
+      setEditGoal(String(value));
+      setShowEditGoalPicker(false);
+    },
+    [customOptionLabel, editShowAllGoals]
+  );
+
+  const syncEditPickerLayouts = useCallback(() => {
+    const hasPickerOpen =
+      showEditDurationPicker ||
+      showEditCycleLengthPicker ||
+      showEditMvLevelPicker ||
+      showEditAgeBandPicker ||
+      showEditGenderPicker ||
+      showEditModalityPicker ||
+      showEditGoalPicker;
+    if (!hasPickerOpen) return;
+    requestAnimationFrame(() => {
+      if (showEditDurationPicker) {
+        editDurationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditDurationTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditCycleLengthPicker) {
+        editCycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditCycleLengthTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditMvLevelPicker) {
+        editMvLevelTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditMvLevelTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditAgeBandPicker) {
+        editAgeBandTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditAgeBandTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditGenderPicker) {
+        editGenderTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditGenderTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditModalityPicker) {
+        editModalityTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditModalityTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditGoalPicker) {
+        editGoalTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditGoalTriggerLayout({ x, y, width, height });
+        });
+      }
+      editContainerRef.current?.measureInWindow((x, y) => {
+        setEditContainerWindow({ x, y });
+      });
+    });
+  }, [
+    showEditDurationPicker,
+    showEditCycleLengthPicker,
+    showEditMvLevelPicker,
+    showEditAgeBandPicker,
+    showEditGenderPicker,
+    showEditModalityPicker,
+    showEditGoalPicker,
+  ]);
+
+  useEffect(() => {
+    syncEditPickerLayouts();
+  }, [
+    showEditDurationPicker,
+    showEditCycleLengthPicker,
+    showEditMvLevelPicker,
+    showEditAgeBandPicker,
+    showEditGenderPicker,
+    showEditModalityPicker,
+    showEditGoalPicker,
+    syncEditPickerLayouts,
+  ]);
 
   const syncPickerLayouts = useCallback(() => {
     const hasPickerOpen =
@@ -1016,40 +1415,38 @@ export default function ClassesScreen() {
                 </Text>
               </View>
             ) : null}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <View
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", flex: 1 }}>
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: palette.bg,
+                    }}
+                  />
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                    {timeLabel}
+                  </Text>
+                  <ClassGenderBadge gender={item.gender} />
+                </View>
+                <Pressable
+                  onPress={() => onEdit(item)}
+                  hitSlop={8}
                   style={{
-                    width: 8,
-                    height: 8,
+                    width: 28,
+                    height: 28,
                     borderRadius: 999,
-                    backgroundColor: palette.bg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
                   }}
-                />
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  {timeLabel}
-                </Text>
-                <ClassGenderBadge gender={item.gender} />
+                >
+                  <Ionicons name="pencil" size={14} color={colors.muted} />
+                </Pressable>
               </View>
-            <Text style={{ color: colors.muted, marginTop: 6, fontSize: 12 }}>
-              {"Faixa: " + item.ageBand}
-            </Text>
-            <Pressable
-              onPress={(event) => {
-                event?.stopPropagation?.();
-                onAttendance(item);
-              }}
-              style={{
-                marginTop: 10,
-                paddingVertical: 8,
-                borderRadius: 12,
-                alignItems: "center",
-                backgroundColor: palette.bg,
-              }}
-            >
-              <Text style={{ color: palette.text, fontWeight: "700", fontSize: 12 }}>
-                Fazer chamada
-              </Text>
-            </Pressable>
             {hasConflicts ? (
               <Text style={{ color: colors.dangerText, marginTop: 6 }}>
                 {"Conflitos: " +
@@ -1081,20 +1478,6 @@ export default function ClassesScreen() {
     newCycleStartDate.trim() ||
     newCycleLengthWeeks !== 12;
 
-  const confirmCloseForm = () => {
-    if (!isDirty) {
-      setShowNew(false);
-      return;
-    }
-    confirmDialog({
-      title: "Sair sem salvar?",
-      message: "Voce tem alteracoes nao salvas.",
-      confirmLabel: "Descartar",
-      cancelLabel: "Continuar",
-      onConfirm: () => setShowNew(false),
-    });
-  };
-
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
@@ -1105,7 +1488,7 @@ export default function ClassesScreen() {
         <ScrollView
           contentContainerStyle={{
             gap: 16,
-            paddingBottom: showNew ? 120 : 24,
+            paddingBottom: 24,
           }}
           keyboardShouldPersistTaps="handled"
           onScroll={syncPickerLayouts}
@@ -1118,448 +1501,474 @@ export default function ClassesScreen() {
           <Text style={{ color: colors.muted, marginTop: 4 }}>Lista completa</Text>
         </View>
 
-        <View style={{ gap: 12 }}>
-          <View
-            style={[
-              getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
-              { borderLeftWidth: 3, borderLeftColor: "#ffffff" },
-            ]}
-          >
-            <Pressable
-              onPress={() => (showNew ? confirmCloseForm() : setShowNew(true))}
-              style={{
-                paddingVertical: 12,
-                paddingHorizontal: 14,
-                borderRadius: 14,
-                backgroundColor: showNew ? colors.secondaryBg : colors.primaryBg,
-                borderWidth: showNew ? 1 : 0,
-                borderColor: colors.border,
-              }}
-            >
-              <View style={{ gap: 4 }}>
-                <Text
-                  style={{
-                    color: showNew ? colors.text : colors.primaryText,
-                    fontWeight: "700",
-                    fontSize: 16,
-                  }}
-                >
-                  {showNew ? "Fechar cadastro" : "+ Nova turma"}
-                </Text>
-                <Text
-                  style={{
-                    color: showNew ? colors.muted : colors.primaryText,
-                    fontSize: 12,
-                  }}
-                >
-                  {showNew ? "Voltar para a lista" : "Cadastre uma nova turma agora"}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-        </View>
+        <ConfirmCloseOverlay
+          visible={showCreateTabConfirm}
+          onCancel={() => {
+            setShowCreateTabConfirm(false);
+            setPendingMainTab(null);
+          }}
+          onConfirm={() => {
+            setShowCreateTabConfirm(false);
+            resetCreateForm();
+            setMainTab(pendingMainTab ?? "lista");
+            setPendingMainTab(null);
+          }}
+        />
 
-        {showNewContent ? (
-          <View style={getSectionCardStyle(colors, "neutral")}>
-            <Animated.View style={[newFormAnimStyle, { gap: 12 }]}>
-              <View
-                style={{
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  overflow: "hidden",
-                }}
-              >
-                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Nome da turma</Text>
-                    <TextInput
-                      placeholder="Nome da turma"
-                      value={newName}
-                      onChangeText={setNewName}
-                      placeholderTextColor={colors.placeholder}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        padding: 12,
-                        borderRadius: 12,
-                        backgroundColor: colors.inputBg,
-                        color: colors.inputText,
-                      }}
-                    />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Unidade</Text>
-                    <TextInput
-                      placeholder="Unidade (ex: Rede Esperanca)"
-                      value={newUnit}
-                      onChangeText={setNewUnit}
-                      placeholderTextColor={colors.placeholder}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        padding: 12,
-                        borderRadius: 12,
-                        backgroundColor: colors.inputBg,
-                        color: colors.inputText,
-                      }}
-                    />
-                  </View>
-                </View>
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Horario</Text>
-                    <TextInput
-                      placeholder="Horario (HH:MM)"
-                      value={newStartTime}
-                      onChangeText={(value) => setNewStartTime(normalizeTimeInput(value))}
-                      keyboardType="numeric"
-                      placeholderTextColor={colors.placeholder}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        padding: 12,
-                        borderRadius: 12,
-                        backgroundColor: colors.inputBg,
-                        color: colors.inputText,
-                      }}
-                    />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Duracao</Text>
-                    <View ref={durationTriggerRef}>
-                      <Pressable
-                        onPress={() => toggleNewPicker("duration")}
-                        style={selectFieldStyle}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                          {newDuration ? `${newDuration} min` : "Selecione"}
-                        </Text>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={colors.muted}
-                          style={{
-                            transform: [
-                              { rotate: showDurationPicker ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </Pressable>
-                    </View>
-                    {showCustomDurationContent ? (
-                      <Animated.View style={customDurationAnimStyle}>
-                        <TextInput
-                          placeholder="Duracao (min)"
-                          value={newDuration}
-                          onChangeText={setNewDuration}
-                          keyboardType="numeric"
-                          placeholderTextColor={colors.placeholder}
-                          style={{
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            padding: 12,
-                            borderRadius: 12,
-                            backgroundColor: colors.inputBg,
-                            color: colors.inputText,
-                          }}
-                        />
-                      </Animated.View>
-                    ) : null}
-                  </View>
-                </View>
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Data inicio do ciclo</Text>
-                    <DateInput
-                      value={newCycleStartDate}
-                      onChange={setNewCycleStartDate}
-                      onOpenCalendar={() => setShowNewCycleCalendar(true)}
-                      placeholder="DD/MM/AAAA"
-                    />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>
-                      Duracao do ciclo (semanas)
-                    </Text>
-                    <View ref={cycleLengthTriggerRef}>
-                      <Pressable
-                        onPress={() => toggleNewPicker("cycle")}
-                        style={selectFieldStyle}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                          {newCycleLengthWeeks + " semanas"}
-                        </Text>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={colors.muted}
-                          style={{
-                            transform: [
-                              { rotate: showCycleLengthPicker ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Nivel</Text>
-                    <View ref={mvLevelTriggerRef}>
-                      <Pressable
-                        onPress={() => toggleNewPicker("level")}
-                        style={selectFieldStyle}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                          {getOptionLabel(newMvLevel, mvLevelOptions)}
-                        </Text>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={colors.muted}
-                          style={{
-                            transform: [
-                              { rotate: showMvLevelPicker ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </Pressable>
-                    </View>
-                  </View>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Faixa etaria</Text>
-                    <View ref={ageBandTriggerRef}>
-                      <Pressable
-                        onPress={() => toggleNewPicker("age")}
-                        style={selectFieldStyle}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                          {newAgeBand || customOptionLabel}
-                        </Text>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={colors.muted}
-                          style={{
-                            transform: [
-                              { rotate: showAgeBandPicker ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </Pressable>
-                    </View>
-                    {showAllAgesContent ? (
-                      <Animated.View style={allAgesAnimStyle}>
-                        <TextInput
-                          placeholder="Faixa etaria (ex: 14-16)"
-                          value={newAgeBand}
-                          onChangeText={setNewAgeBand}
-                          placeholderTextColor={colors.placeholder}
-                          style={{
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            padding: 12,
-                            borderRadius: 12,
-                            backgroundColor: colors.inputBg,
-                            color: colors.inputText,
-                          }}
-                        />
-                      </Animated.View>
-                    ) : null}
-                  </View>
-                </View>
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-                <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Genero</Text>
-                    <View ref={genderTriggerRef}>
-                      <Pressable
-                        onPress={() => toggleNewPicker("gender")}
-                        style={selectFieldStyle}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                          {getOptionLabel(newGender, genderOptions)}
-                        </Text>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={colors.muted}
-                          style={{
-                            transform: [
-                              { rotate: showGenderPicker ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </Pressable>
-                    </View>
-                  </View>
-                  <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                    <Text style={{ fontSize: 12, color: colors.muted }}>Modalidade</Text>
-                    <View ref={modalityTriggerRef}>
-                      <Pressable
-                        onPress={() => toggleNewPicker("modality")}
-                        style={selectFieldStyle}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                          {getOptionLabel(newModality, modalityOptions)}
-                        </Text>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={colors.muted}
-                          style={{
-                            transform: [
-                              { rotate: showModalityPicker ? "180deg" : "0deg" },
-                            ],
-                          }}
-                        />
-                      </Pressable>
-                    </View>
-                  </View>
-                </View>
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-                <View style={{ padding: 10, gap: 6 }}>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>Dias da semana</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {dayNames.map((label, index) => {
-                      const active = newDays.includes(index);
-                      return (
-                        <Pressable
-                          key={label}
-                          onPress={() => toggleDay(index)}
-                          style={getChipStyle(active)}
-                        >
-                          <Text style={getChipTextStyle(active)}>{label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-                <View style={{ padding: 10, gap: 6 }}>
-                  <Text style={{ fontSize: 12, color: colors.muted }}>Objetivo</Text>
-                  <View ref={goalTriggerRef}>
-                    <Pressable
-                      onPress={() => toggleNewPicker("goal")}
-                      style={selectFieldStyle}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                        {newGoal || customOptionLabel}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={colors.muted}
-                        style={{
-                          transform: [{ rotate: showGoalPicker ? "180deg" : "0deg" }],
-                        }}
-                      />
-                    </Pressable>
-                  </View>
-                  {showAllGoalsContent ? (
-                    <Animated.View style={allGoalsAnimStyle}>
-                      <TextInput
-                        placeholder="Objetivo (ex: Forca, Potencia)"
-                        value={newGoal}
-                        onChangeText={setNewGoal}
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 12,
-                          borderRadius: 12,
-                          backgroundColor: colors.inputBg,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </Animated.View>
-                  ) : null}
-                </View>
-              </View>
-              {formError ? (
-                <Text style={{ color: colors.dangerText, fontSize: 12 }}>{formError}</Text>
-              ) : null}
-            </Animated.View>
-          </View>
-        ) : null}
-
-        <View style={getSectionCardStyle(colors, "info", { padding: 0, radius: 16 })}>
-          <View style={{ padding: 10 }}>
-            <Text style={{ fontSize: 13, color: colors.muted }}>Unidades</Text>
-            <View ref={unitFilterTriggerRef} style={{ position: "relative" }}>
-              <Pressable
-                onPress={toggleUnitFilter}
-                style={{
-                  marginTop: 8,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-                  {unitFilter}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={16}
-                  color={colors.muted}
-                  style={{ transform: [{ rotate: showUnitFilterPicker ? "180deg" : "0deg" }] }}
-                />
-              </Pressable>
-            </View>
-          </View>
-        </View>
-        {grouped.map(([unit, items]) => {
-          const palette = getUnitPalette(unit, colors);
-          return (
-            <View key={unit} style={{ gap: 10 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View
+        <View style={[getSectionCardStyle(colors, "info", { padding: 10, radius: 16 })]}>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {[
+              { id: "lista" as const, label: "Lista" },
+              { id: "criar" as const, label: "Criar turma" },
+            ].map((tab) => {
+              const selected = mainTab === tab.id;
+              return (
+                <Pressable
+                  key={tab.id}
+                  onPress={() => requestSwitchMainTab(tab.id)}
                   style={{
-                    width: 10,
-                    height: 10,
+                    flex: 1,
+                    paddingVertical: 8,
                     borderRadius: 999,
-                    backgroundColor: palette.bg,
+                    backgroundColor: selected ? colors.primaryBg : "transparent",
+                    alignItems: "center",
                   }}
-                />
-                <View style={{ gap: 2 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    {unit}
+                >
+                  <Text
+                    style={{
+                      color: selected ? colors.primaryText : colors.text,
+                      fontWeight: "700",
+                      fontSize: 11,
+                    }}
+                  >
+                    {tab.label}
                   </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {"Turmas: " + items.length}
-                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {mainTab === "lista" && (
+        <View style={{ gap: 12, marginTop: 12 }}>
+          <View style={[getSectionCardStyle(colors, "info", { padding: 10, radius: 16 })]}>
+            <View style={{ gap: 8 }}>
+              {unitRows.map((row, rowIndex) => (
+                <View key={`unit-row-${rowIndex}`} style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {row.map((unit) => {
+                    const active = unitFilter === unit;
+                    const palette =
+                      unit === "Todas"
+                        ? { bg: colors.primaryBg, text: colors.primaryText }
+                        : getUnitPalette(unit, colors);
+                    return (
+                      <Pressable
+                        key={unit}
+                        onPress={() => handleSelectUnit(unit)}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: active ? palette.bg : colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: active ? "transparent" : colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: active ? palette.text : colors.text,
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {unit}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </View>
+          {grouped.map(([unit, items]) => {
+            const palette = getUnitPalette(unit, colors);
+            return (
+              <View key={unit} style={{ gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 999,
+                      backgroundColor: palette.bg,
+                    }}
+                  />
+                  <View style={{ gap: 2 }}>
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                      {unit}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {"Turmas: " + items.length}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ gap: 12 }}>
+                  {items.map((item) => (
+                    <ClassCard
+                      key={item.id}
+                      item={item}
+                      palette={palette}
+                      conflicts={conflictsById[item.id]}
+                      onOpen={handleOpenClass}
+                      onEdit={handleEditClass}
+                      onAttendance={handleOpenAttendance}
+                    />
+                  ))}
                 </View>
               </View>
-              <View style={{ gap: 12 }}>
-                {items.map((item) => (
-                  <ClassCard
-                    key={item.id}
-                    item={item}
-                    palette={palette}
-                    conflicts={conflictsById[item.id]}
-                    onOpen={handleOpenClass}
-                    onEdit={handleEditClass}
-                    onAttendance={handleOpenAttendance}
+            );
+          })}
+        </View>
+        )}
+
+        {mainTab === "criar" && (
+        <View style={{ gap: 12, marginTop: 12 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
+              <TextInput
+                placeholder="Nome da turma"
+                value={newName}
+                onChangeText={setNewName}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 10,
+                  fontSize: 13,
+                  color: colors.text,
+                }}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
+              <TextInput
+                placeholder="Unidade"
+                value={newUnit}
+                onChangeText={setNewUnit}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 10,
+                  fontSize: 13,
+                  color: colors.text,
+                }}
+              />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Genero</Text>
+              <View ref={genderTriggerRef}>
+                <Pressable
+                  onPress={() => toggleNewPicker("gender")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {getOptionLabel(newGender, genderOptions) || "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showGenderPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
                   />
-                ))}
+                </Pressable>
               </View>
             </View>
-          );
-        })}
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
+              <View ref={goalTriggerRef}>
+                <Pressable
+                  onPress={() => toggleNewPicker("goal")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {newGoal || "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showGoalPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+              {goalSuggestions.length ? (
+                <>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
+                    Sugestoes da turma
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                    {goalSuggestions.map((item) => (
+                      <Pressable
+                        key={item}
+                        onPress={() => setNewGoal(item)}
+                        style={getChipStyle(false)}
+                      >
+                        <Text style={getChipTextStyle(false)}>{item}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : null}
+              {showAllGoals ? (
+                <TextInput
+                  placeholder="Objetivo (ex: Forca, Potencia)"
+                  value={newGoal}
+                  onChangeText={setNewGoal}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              ) : null}
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
+              <View ref={modalityTriggerRef}>
+                <Pressable
+                  onPress={() => toggleNewPicker("modality")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {getOptionLabel(newModality, modalityOptions) || "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showModalityPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
+              <View ref={ageBandTriggerRef}>
+                <Pressable
+                  onPress={() => toggleNewPicker("age")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {newAgeBand || "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showAgeBandPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+              {showAllAges ? (
+                <TextInput
+                  placeholder="Faixa etaria (ex: 14-16)"
+                  value={newAgeBand}
+                  onChangeText={setNewAgeBand}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              ) : null}
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Horario de inicio</Text>
+              <TextInput
+                placeholder="HH:MM"
+                value={newStartTime}
+                onChangeText={(value) => setNewStartTime(normalizeTimeInput(value))}
+                keyboardType="numeric"
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 10,
+                  fontSize: 13,
+                  color: colors.text,
+                }}
+              />
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao</Text>
+              <View ref={durationTriggerRef}>
+                <Pressable
+                  onPress={() => toggleNewPicker("duration")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {newDuration ? `${newDuration} min` : "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showDurationPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+              {showCustomDuration ? (
+                <TextInput
+                  placeholder="Duracao (min)"
+                  value={newDuration}
+                  onChangeText={setNewDuration}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              ) : null}
+            </View>
+          </View>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Dias da semana</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {dayNames.map((label, index) => {
+                const active = newDays.includes(index);
+                return (
+                  <Pressable
+                    key={label}
+                    onPress={() => toggleDay(index)}
+                    style={getChipStyle(active)}
+                  >
+                    <Text style={getChipTextStyle(active)}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Nivel</Text>
+              <View ref={mvLevelTriggerRef}>
+                <Pressable
+                  onPress={() => toggleNewPicker("level")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {getOptionLabel(newMvLevel, mvLevelOptions) || "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showMvLevelPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao do ciclo</Text>
+              <View ref={cycleLengthTriggerRef}>
+                <Pressable
+                  onPress={() => toggleNewPicker("cycle")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {newCycleLengthWeeks
+                      ? `${newCycleLengthWeeks} semanas`
+                      : "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showCycleLengthPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Inicio do ciclo</Text>
+            <DateInput
+              value={newCycleStartDate}
+              onChange={setNewCycleStartDate}
+              placeholder="DD/MM/AAAA"
+            />
+          </View>
+          {formError ? (
+            <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+              {formError}
+            </Text>
+          ) : null}
+          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+          <Button
+            label={saving ? "Salvando..." : "Criar turma"}
+            onPress={saveNewClass}
+            disabled={saving || !newName.trim()}
+          />
+        </View>
+        )}
         </ScrollView>
 
         <AnchoredDropdown
@@ -1804,49 +2213,45 @@ export default function ClassesScreen() {
         </AnchoredDropdown>
       </View>
       </KeyboardAvoidingView>
-      {showNew ? (
-        <View
-          style={{
-            position: "absolute",
-            left: 16,
-            right: 16,
-            bottom: 16,
-            borderRadius: 16,
-          }}
-        >
-          <Button
-            label={saving ? "Salvando..." : "Salvar turma"}
-            onPress={saveNewClass}
-            disabled={saving || !newName.trim()}
-          />
-        </View>
-      ) : null}
+
       <ModalSheet
         visible={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setEditingClass(null);
-        }}
+        onClose={requestCloseEditModal}
         cardStyle={editModalCardStyle}
         position="center"
       >
-        <View style={{ gap: 12 }}>
+        <ConfirmCloseOverlay
+          visible={showEditCloseConfirm}
+          onCancel={() => setShowEditCloseConfirm(false)}
+          onConfirm={() => {
+            setShowEditCloseConfirm(false);
+            closeEditModal();
+          }}
+        />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Editar turma
           </Text>
-
-          <View
+          <Pressable
+            onPress={requestCloseEditModal}
             style={{
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              overflow: "hidden",
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
             }}
           >
-            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Nome da turma</Text>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
+        <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16, paddingHorizontal: 12 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
                 <TextInput
                   placeholder="Nome da turma"
                   value={editName}
@@ -1855,15 +2260,16 @@ export default function ClassesScreen() {
                   style={{
                     borderWidth: 1,
                     borderColor: colors.border,
-                    padding: 12,
+                    padding: 10,
                     borderRadius: 12,
                     backgroundColor: colors.inputBg,
                     color: colors.inputText,
+                    fontSize: 13,
                   }}
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Unidade</Text>
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
                 <TextInput
                   placeholder="Unidade"
                   value={editUnit}
@@ -1872,18 +2278,18 @@ export default function ClassesScreen() {
                   style={{
                     borderWidth: 1,
                     borderColor: colors.border,
-                    padding: 12,
+                    padding: 10,
                     borderRadius: 12,
                     backgroundColor: colors.inputBg,
                     color: colors.inputText,
+                    fontSize: 13,
                   }}
                 />
               </View>
             </View>
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Horario</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Horario</Text>
                 <TextInput
                   placeholder="Horario (HH:MM)"
                   value={editStartTime}
@@ -1893,45 +2299,34 @@ export default function ClassesScreen() {
                   style={{
                     borderWidth: 1,
                     borderColor: colors.border,
-                    padding: 12,
+                    padding: 10,
                     borderRadius: 12,
                     backgroundColor: colors.inputBg,
                     color: colors.inputText,
+                    fontSize: 13,
                   }}
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Duracao</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  {durationOptions.map((item) => {
-                    const active = editDuration === item;
-                    return (
-                      <Pressable
-                        key={item}
-                        onPress={() => setEditDuration(item)}
-                        style={getChipStyle(active)}
-                      >
-                        <Text style={getChipTextStyle(active)}>{item + " min"}</Text>
-                      </Pressable>
-                    );
-                  })}
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao</Text>
+                <View ref={editDurationTriggerRef}>
                   <Pressable
-                    onPress={() => {
-                      animateLayout();
-                      setEditShowCustomDuration((prev) => !prev);
-                    }}
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 13,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.secondaryBg,
-                    }}
+                    onPress={() => toggleEditPicker("duration")}
+                    style={selectFieldStyle}
                   >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {editShowCustomDuration ? "−" : "+"}
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {editDuration ? `${editDuration} min` : "Selecione"}
                     </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditDurationPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
                   </Pressable>
                 </View>
                 {editShowCustomDuration ? (
@@ -1944,19 +2339,19 @@ export default function ClassesScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      padding: 12,
+                      padding: 10,
                       borderRadius: 12,
                       backgroundColor: colors.inputBg,
                       color: colors.inputText,
+                      fontSize: 13,
                     }}
                   />
                 ) : null}
               </View>
             </View>
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Data inicio do ciclo</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Data inicio do ciclo</Text>
                 <DateInput
                   value={editCycleStartDate}
                   onChange={setEditCycleStartDate}
@@ -1964,77 +2359,74 @@ export default function ClassesScreen() {
                   placeholder="DD/MM/AAAA"
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Duracao do ciclo</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  {cycleLengthOptions.map((value) => {
-                    const active = editCycleLengthWeeks === value;
-                    return (
-                      <Pressable
-                        key={value}
-                        onPress={() => setEditCycleLengthWeeks(value)}
-                        style={getChipStyle(active)}
-                      >
-                        <Text style={getChipTextStyle(active)}>
-                          {value + "sem"}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao do ciclo</Text>
+                <View ref={editCycleLengthTriggerRef}>
+                  <Pressable
+                    onPress={() => toggleEditPicker("cycle")}
+                    style={selectFieldStyle}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {editCycleLengthWeeks ? `${editCycleLengthWeeks} semanas` : "Selecione"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditCycleLengthPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
                 </View>
               </View>
             </View>
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Nivel</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  {mvLevelOptions.map((option) => {
-                    const active = editMvLevel === option.value;
-                    return (
-                      <Pressable
-                        key={option.value}
-                        onPress={() => setEditMvLevel(option.value)}
-                        style={getChipStyle(active)}
-                      >
-                        <Text style={getChipTextStyle(active)}>{option.label}</Text>
-                      </Pressable>
-                    );
-                  })}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Nivel</Text>
+                <View ref={editMvLevelTriggerRef}>
+                  <Pressable
+                    onPress={() => toggleEditPicker("level")}
+                    style={selectFieldStyle}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {getOptionLabel(editMvLevel, mvLevelOptions) || "Selecione"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditMvLevelPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
                 </View>
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                <Text style={{ fontSize: 12, color: colors.muted }}>Faixa etaria</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  {ageBandOptions.slice(0, 3).map((band) => {
-                    const active = editAgeBand === band;
-                    return (
-                      <Pressable
-                        key={band}
-                        onPress={() => setEditAgeBand(band)}
-                        style={getChipStyle(active)}
-                      >
-                        <Text style={getChipTextStyle(active)}>{band}</Text>
-                      </Pressable>
-                    );
-                  })}
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
+                <View ref={editAgeBandTriggerRef}>
                   <Pressable
-                    onPress={() => {
-                      animateLayout();
-                      setEditShowAllAges((prev) => !prev);
-                    }}
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 13,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.secondaryBg,
-                    }}
+                    onPress={() => toggleEditPicker("age")}
+                    style={selectFieldStyle}
                   >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {editShowAllAges ? "−" : "+"}
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {editAgeBand || "Selecione"}
                     </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditAgeBandPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
                   </Pressable>
                 </View>
                 {editShowAllAges ? (
@@ -2046,104 +2438,83 @@ export default function ClassesScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      padding: 12,
+                      padding: 10,
                       borderRadius: 12,
                       backgroundColor: colors.inputBg,
                       color: colors.inputText,
+                      fontSize: 13,
                     }}
                   />
                 ) : null}
               </View>
             </View>
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-            <View style={{ padding: 10, gap: 8 }}>
-              <Text style={{ fontSize: 12, color: colors.muted }}>Genero</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {genderOptions.map((option) => {
-                  const active = editGender === option.value;
-                  return (
-                    <Pressable
-                      key={option.value}
-                      onPress={() => setEditGender(option.value)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-            <View style={{ padding: 10, gap: 8 }}>
-              <Text style={{ fontSize: 12, color: colors.muted }}>Dias da semana</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {dayNames.map((label, index) => {
-                  const active = editDays.includes(index);
-                  return (
-                    <Pressable
-                      key={label}
-                      onPress={() => toggleEditDay(index)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>{label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-            <View style={{ padding: 10, gap: 8 }}>
-              <Text style={{ fontSize: 12, color: colors.muted }}>Modalidade</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {modalityOptions.map((option) => {
-                  const active = editModality === option.value;
-                  return (
-                    <Pressable
-                      key={option.value}
-                      onPress={() => setEditModality(option.value)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>{option.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            <View style={{ height: 1, backgroundColor: colors.border }} />
-            <View style={{ padding: 10, gap: 8 }}>
-              <Text style={{ fontSize: 12, color: colors.muted }}>Objetivo</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {goals.slice(0, 4).map((item) => {
-                  const active = editGoal === item;
-                  return (
-                    <Pressable
-                      key={item}
-                      onPress={() => setEditGoal(item)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>{item}</Text>
-                    </Pressable>
-                  );
-                })}
+            <View style={{ gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Genero</Text>
+              <View ref={editGenderTriggerRef}>
                 <Pressable
-                  onPress={() => {
-                    animateLayout();
-                    setEditShowAllGoals((prev) => !prev);
-                  }}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
-                  }}
+                  onPress={() => toggleEditPicker("gender")}
+                  style={selectFieldStyle}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {editShowAllGoals ? "−" : "+"}
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {getOptionLabel(editGender, genderOptions) || "Selecione"}
                   </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showEditGenderPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
+                <View ref={editModalityTriggerRef}>
+                  <Pressable
+                    onPress={() => toggleEditPicker("modality")}
+                    style={selectFieldStyle}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {getOptionLabel(editModality, modalityOptions) || "Selecione"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditModalityPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
+                <View ref={editGoalTriggerRef}>
+                <Pressable
+                  onPress={() => toggleEditPicker("goal")}
+                  style={selectFieldStyle}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {editGoal || "Selecione"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showEditGoalPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
                 </Pressable>
               </View>
               {editGoalSuggestions.length ? (
@@ -2173,50 +2544,257 @@ export default function ClassesScreen() {
                   style={{
                     borderWidth: 1,
                     borderColor: colors.border,
-                    padding: 12,
+                    padding: 10,
                     borderRadius: 12,
                     backgroundColor: colors.inputBg,
                     color: colors.inputText,
+                    fontSize: 13,
                   }}
                 />
               ) : null}
+              </View>
             </View>
-          </View>
-          {editFormError ? (
-            <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-              {editFormError}
-            </Text>
-          ) : null}
-          
-          <Button
-            label={editSaving ? "Salvando..." : "Salvar alteracoes"}
-            onPress={saveEditClass}
-            disabled={editSaving || !editName.trim()}
+            <View style={{ gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Dias da semana</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {dayNames.map((label, index) => {
+                  const active = editDays.includes(index);
+                  return (
+                    <Pressable
+                      key={label}
+                      onPress={() => toggleEditDay(index)}
+                      style={getChipStyle(active)}
+                    >
+                      <Text style={getChipTextStyle(active)}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+            {editFormError ? (
+              <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                {editFormError}
+              </Text>
+            ) : null}
+            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+            <Button
+              label={editSaving ? "Salvando..." : "Salvar alteracoes"}
+              onPress={saveEditClass}
+              disabled={editSaving || !editName.trim() || !isEditDirty}
+            />
+            <Button
+              label="Excluir turma"
+              variant="danger"
+              onPress={handleDeleteClass}
+              disabled={editSaving}
+            />
+
+        <AnchoredDropdown
+          visible={showEditDurationPickerContent}
+          layout={editDurationTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editDurationPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {durationOptions.map((item, index) => (
+            <SelectOption
+              key={item}
+              label={item + " min"}
+              value={item}
+              active={editDuration === item && !editShowCustomDuration}
+              onSelect={handleEditSelectDuration}
+              isFirst={index === 0}
+            />
+          ))}
+          <SelectOption
+            label={customOptionLabel}
+            value={customOptionLabel}
+            active={editShowCustomDuration}
+            onSelect={handleEditSelectDuration}
           />
-          
-          <Button
-            label="Excluir turma"
-            variant="danger"
-            onPress={handleDeleteClass}
-            disabled={editSaving}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showEditCycleLengthPickerContent}
+          layout={editCycleLengthTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editCycleLengthPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {cycleLengthOptions.map((value, index) => (
+            <SelectOption
+              key={value}
+              label={`${value} semanas`}
+              value={value}
+              active={editCycleLengthWeeks === value}
+              onSelect={handleEditSelectCycleLength}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showEditMvLevelPickerContent}
+          layout={editMvLevelTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editMvLevelPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {mvLevelOptions.map((option, index) => (
+            <SelectOption
+              key={option.value}
+              label={option.label}
+              value={option.value}
+              active={editMvLevel === option.value}
+              onSelect={handleEditSelectMvLevel}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showEditAgeBandPickerContent}
+          layout={editAgeBandTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editAgeBandPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {ageBandOptions.map((band, index) => (
+            <SelectOption
+              key={band}
+              label={band}
+              value={band}
+              active={editAgeBand === band && !editShowAllAges}
+              onSelect={handleEditSelectAgeBand}
+              isFirst={index === 0}
+            />
+          ))}
+          <SelectOption
+            label={customOptionLabel}
+            value={customOptionLabel}
+            active={editShowAllAges}
+            onSelect={handleEditSelectAgeBand}
           />
-          
-          <Pressable
-            onPress={() => {
-              setShowEditModal(false);
-              setEditingClass(null);
-            }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>
-              Fechar
-            </Text>
-          </Pressable>
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showEditGenderPickerContent}
+          layout={editGenderTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editGenderPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {genderOptions.map((option, index) => (
+            <SelectOption
+              key={option.value}
+              label={option.label}
+              value={option.value}
+              active={editGender === option.value}
+              onSelect={handleEditSelectGender}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showEditModalityPickerContent}
+          layout={editModalityTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editModalityPickerAnimStyle}
+          zIndex={320}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {modalityOptions.map((option, index) => (
+            <SelectOption
+              key={option.value}
+              label={option.label}
+              value={option.value}
+              active={editModality === option.value}
+              onSelect={handleEditSelectModality}
+              isFirst={index === 0}
+            />
+          ))}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showEditGoalPickerContent}
+          layout={editGoalTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editGoalPickerAnimStyle}
+          zIndex={320}
+          maxHeight={260}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {goalOptions.map((goal, index) => (
+            <SelectOption
+              key={goal}
+              label={goal}
+              value={goal}
+              active={editGoal === goal && !editShowAllGoals}
+              onSelect={handleEditSelectGoal}
+              isFirst={index === 0}
+            />
+          ))}
+          <SelectOption
+            label={customOptionLabel}
+            value={customOptionLabel}
+            active={editShowAllGoals}
+            onSelect={handleEditSelectGoal}
+          />
+        </AnchoredDropdown>
         </View>
       </ModalSheet>
       <DatePickerModal
