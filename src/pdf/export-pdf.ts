@@ -60,3 +60,4 @@ export const exportPdf = async ({
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return { uri: url, fileName };
+};
