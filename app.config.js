@@ -57,6 +57,7 @@ module.exports = {
 					url: "https://sentry.io/",
 					project: "react-native",
 					organization: "otaldogustas-company",
+					dsn: "https://75f40b42770cc00892​43e3a49bb654f0a45f0656f0577f7920.ingest.us.sentry.io/4510656f0760832f0",
 				},
 			],
 		],

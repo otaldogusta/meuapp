@@ -524,7 +524,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
                   Abrir plano
                 </Text>
               </Pressable>
@@ -554,7 +554,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
                   Fazer chamada
                 </Text>
               </Pressable>
@@ -585,7 +585,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
                   Fazer relatorio
                 </Text>
               </Pressable>
@@ -616,7 +616,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
                   Scouting
                 </Text>
               </Pressable>
