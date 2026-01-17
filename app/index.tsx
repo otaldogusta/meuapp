@@ -415,7 +415,9 @@ export default function Home() {
           style={{
             padding: 16,
             borderRadius: 20,
-            backgroundColor: colors.primaryBg,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
             shadowColor: "#000",
             shadowOpacity: 0.2,
             shadowRadius: 12,
@@ -425,10 +427,10 @@ export default function Home() {
         >
           <View style={{ gap: 12 }}>
             <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.primaryText, fontSize: 18, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
                 Agenda do dia
               </Text>
-              <Text style={{ color: colors.primaryText, opacity: 0.85 }}>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>
                 Turmas, treino e chamada em um lugar
               </Text>
             </View>
@@ -436,9 +438,9 @@ export default function Home() {
               style={{
                 padding: 12,
                 borderRadius: 14,
-                backgroundColor: "rgba(255,255,255,0.12)",
+                backgroundColor: colors.secondaryBg,
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.18)",
+                borderColor: colors.border,
                 gap: 8,
               }}
             >
@@ -457,18 +459,20 @@ export default function Home() {
                         paddingVertical: 2,
                         paddingHorizontal: 8,
                         borderRadius: 999,
-                        backgroundColor: "rgba(255,255,255,0.16)",
+                        backgroundColor: colors.card,
+                        borderWidth: 1,
+                        borderColor: colors.border,
                       }}
                     >
-                      <Text style={{ color: colors.primaryText, fontSize: 11, fontWeight: "700" }}>
+                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
                         Proxima aula
                       </Text>
                     </View>
-                    <Text style={{ color: colors.primaryText, opacity: 0.8 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
                       {nearestSummary.dateLabel}
                     </Text>
                   </View>
-                  <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
                     {nearestSummary.className}
                   </Text>
                   <View
@@ -478,16 +482,16 @@ export default function Home() {
                       gap: 12,
                     }}
                   >
-                    <Text style={{ color: colors.primaryText, opacity: 0.9, flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, flex: 1 }}>
                       {nearestSummary.unit}
                     </Text>
-                    <Text style={{ color: colors.primaryText, opacity: 0.8 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
                       {nearestSummary.timeLabel}
                     </Text>
                   </View>
                 </>
               ) : (
-                <Text style={{ color: colors.primaryText, opacity: 0.85 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>
                   Nenhuma aula encontrada nos proximos dias.
                 </Text>
               )}
@@ -520,7 +524,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                   Abrir plano
                 </Text>
               </Pressable>
@@ -550,7 +554,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                   Fazer chamada
                 </Text>
               </Pressable>
@@ -581,7 +585,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                   Fazer relatorio
                 </Text>
               </Pressable>
@@ -612,7 +616,7 @@ export default function Home() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                   Scouting
                 </Text>
               </Pressable>

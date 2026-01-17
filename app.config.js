@@ -1,18 +1,80 @@
 require("dotenv").config();
 
-const appJson = require("./app.json");
-
 const supabaseUrl =
 	process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
 const supabaseAnonKey =
 	process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
 
 module.exports = {
-	...appJson,
 	expo: {
-		...appJson.expo,
+		name: "GoAtleta",
+		slug: "goatleta",
+		version: "1.0.0",
+		orientation: "portrait",
+		icon: "./assets/images/icon.png",
+		scheme: "goatleta",
+		userInterfaceStyle: "automatic",
+		newArchEnabled: true,
+		ios: {
+			supportsTablet: true,
+			bundleIdentifier: "com.otaldogusta.goatleta",
+		},
+		android: {
+			adaptiveIcon: {
+				backgroundColor: "#E6F4FE",
+				foregroundImage: "./assets/images/android-icon-foreground.png",
+				backgroundImage: "./assets/images/android-icon-background.png",
+				monochromeImage: "./assets/images/android-icon-monochrome.png",
+			},
+			edgeToEdgeEnabled: true,
+			softwareKeyboardLayoutMode: "resize",
+			predictiveBackGestureEnabled: false,
+			package: "com.otaldogusta.goatleta",
+		},
+		web: {
+			output: "static",
+			favicon: "./assets/images/favicon.png",
+		},
+		plugins: [
+			"expo-router",
+			[
+				"expo-splash-screen",
+				{
+					image: "./assets/images/splash-icon.png",
+					imageWidth: 200,
+					resizeMode: "contain",
+					backgroundColor: "#ffffff",
+					dark: {
+						backgroundColor: "#000000",
+					},
+				},
+			],
+			"@react-native-community/datetimepicker",
+			"@sentry/react-native",
+			[
+				"@sentry/react-native/expo",
+				{
+					url: "https://sentry.io/",
+					project: "react-native",
+					organization: "otaldogustas-company",
+				},
+			],
+		],
+		updates: {
+			url: "https://u.expo.dev/ac21b1cd-e0e3-495f-ba43-e262c8185ef5",
+		},
+		runtimeVersion: {
+			policy: "appVersion",
+		},
+		experiments: {
+			typedRoutes: true,
+			reactCompiler: true,
+		},
 		extra: {
-			...(appJson.expo?.extra ?? {}),
+			router: {},
+			eas: {
+				projectId: "ac21b1cd-e0e3-495f-ba43-e262c8185ef5",
+			},
 			SUPABASE_URL: supabaseUrl,
 			SUPABASE_ANON_KEY: supabaseAnonKey,
 		},
